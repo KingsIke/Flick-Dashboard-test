@@ -1,0 +1,43 @@
+ Step 1: Create a Token Encryption Utility
+Make a utility to encrypt your token:
+import * as crypto from 'crypto';
+
+const algorithm = 'aes-256-cbc';
+const secretKey = crypto.scryptSync('your_super_secret_passphrase', 'salt', 32); // derive key
+const iv = crypto.randomBytes(16); // initialization vector
+
+export function encryptToken(token: string): string {
+  const cipher = crypto.createCipheriv(algorithm, secretKey, iv);
+  let encrypted = cipher.update(token, 'utf8', 'base64');
+  encrypted += cipher.final('base64');
+  return `sk-${iv.toString('base64')}.${encrypted}`;
+}
+
+
+You can store the passphrase and salt in your .env for extra safety.
+
+🧪 Step 2: Use It in Your Login Method
+Update your login method like this:
+const payload = { sub: user.id, email: user.email };
+const jwt = this.jwtService.sign(payload);
+
+const secureToken = encryptToken(jwt);
+
+return { message: 'Login successful', token: secureToken };
+
+
+
+🧩 Bonus: Decrypt It Later (If Needed)
+export function decryptToken(encryptedToken: string): string {
+  const [ivBase64, encryptedData] = encryptedToken.replace(/^sk-/, '').split('.');
+  const iv = Buffer.from(ivBase64, 'base64');
+  const decipher = crypto.createDecipheriv(algorithm, secretKey, iv);
+  let decrypted = decipher.update(encryptedData, 'base64', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
+
+
+
+With this, you're shielding the internals of the JWT while still giving the client a usable and stylish secret key format—mission accomplished 💥
+Want to hash tokens instead of encrypting? Or store them in your DB for tracking purposes? I can help you level this up too.
