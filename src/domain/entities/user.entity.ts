@@ -67,9 +67,14 @@ export class User {
   @Column({ nullable: true })
   supportPhone?: string;
 
-//   @ManyToMany(() => Account, (account) => account.users)
-//   @JoinTable()
-//   accounts: Account[];
+  @Column({ nullable: true })
+  payoutOtp: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  payoutOtpExpiresAt: Date;
+
+  @Column({ nullable: true })
+  pendingPayoutId: string;
 
 @ManyToMany(() => Account, (account) => account.users)
 @JoinTable({

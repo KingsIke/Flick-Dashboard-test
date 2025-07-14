@@ -1,7 +1,8 @@
 /* eslint-disable prettier/prettier */
-import { Entity, Column, PrimaryGeneratedColumn, ManyToMany, OneToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToMany, OneToOne, OneToMany } from 'typeorm';
 import { User } from './user.entity';
 import { Wallet } from './wallet.entity';
+import { PaymentPage } from './payment.entity';
 
 
 @Entity('accounts')
@@ -34,6 +35,9 @@ export class Account {
   @Column({ nullable: true })
   merchantCode?: string;
 
+    @Column({ nullable: true })
+    superMerchantCode: string;
+
   @Column({ nullable: true })
   webhook_url?: string;
 
@@ -64,6 +68,9 @@ export class Account {
   @Column({ default: false })
   is_vc: boolean;
 
+  @Column({ default: false })
+  isLive: boolean;
+  
   @Column({ type: 'jsonb', nullable: true })
   FPR: {
     merchant: boolean;
@@ -83,6 +90,8 @@ export class Account {
   users: User[];
 
   @OneToOne(() => Wallet, (wallet) => wallet.account, { cascade: true })
-  @JoinColumn()
   wallet: Wallet;
+  
+  @OneToMany(() => PaymentPage, (paymentPage) => paymentPage.account)
+  paymentPages: PaymentPage[];
 }

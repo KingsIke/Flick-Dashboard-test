@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier */
-import { Entity, Column, PrimaryGeneratedColumn, OneToOne, OneToMany } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, OneToOne, OneToMany, JoinColumn } from 'typeorm';
 import { Account } from './account.entity';
 import { Transaction } from './transaction.entity';
 // import { Transaction } from './transaction.entity';
@@ -18,6 +18,7 @@ export class Wallet {
   }[];
 
   @OneToOne(() => Account, (account) => account.wallet)
+  @JoinColumn()
   account: Account;
 
   @OneToMany(() => Transaction, (transaction) => transaction.wallet)

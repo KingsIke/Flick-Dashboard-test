@@ -26,6 +26,11 @@ import { TransactionRepository } from './infrastructure/repositories/transaction
 import { BusinessController } from './business/business.controller';
 import { BusinessService } from './business/business';
 import { TokenEncryptionUtil } from './config/utils/TokenEncryptionUtil';
+import { PaymentPageRepository } from './infrastructure/repositories/payment.repository';
+import { PaymentPage } from './domain/entities/payment.entity';
+import { EncryptionUtil } from './config/utils/EncryptionUtil';
+import { Beneficiary } from './domain/entities/beneficiary.entity';
+import { BeneficiaryRepository } from './infrastructure/repositories/beneficiary.repository';
 
 
 
@@ -37,14 +42,14 @@ import { TokenEncryptionUtil } from './config/utils/TokenEncryptionUtil';
       load: [emailConfig],
     }),
     TypeOrmModule.forRoot(typeOrmConfig),
-    TypeOrmModule.forFeature([User, Account, Wallet, Transaction, Bank]), 
+    TypeOrmModule.forFeature([User, Account, Wallet, Transaction, Bank, PaymentPage, Beneficiary]), 
     JwtModule.register({
       secret: process.env.JWT_SECRET,
       signOptions: { expiresIn: '1h' },
     }),
   ],
   controllers: [AuthController, BusinessController],
-  providers: [AuthService, EmailService, BankService, UserRepository, AccountRepository, WalletRepository, TransactionRepository, BankRepository, JwtStrategy, BusinessService,TokenEncryptionUtil],
+  providers: [AuthService, EmailService, BankService, UserRepository, AccountRepository, WalletRepository, TransactionRepository, BankRepository, JwtStrategy, BusinessService,TokenEncryptionUtil, PaymentPageRepository, EncryptionUtil, BeneficiaryRepository, ],
   exports: [AuthService, BusinessService],
 
 })

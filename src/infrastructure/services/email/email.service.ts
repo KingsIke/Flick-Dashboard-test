@@ -82,4 +82,14 @@ export class EmailService {
       html: `<p>Your password reset OTP is <strong>${otp}</strong></p>`,
     });
   }
+
+   async sendPayoutOtp(email: string, otp: string, details: { amount: number; beneficiary_name: string; bank_name: string; account_number: string }) {
+       await this.transporter.sendMail({
+      from: '" Flick " <' + this.configService.get<string>('EMAIL_USER') + '>',
+
+      to:email,
+      subject: 'Reset your password',
+      html: `Sending NGN ${details.amount} to ${details.beneficiary_name}, ${details.bank_name}, ${details.account_number}. Your OTP is ${otp}.`,
+    });
+   }
 }
