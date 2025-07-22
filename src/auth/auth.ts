@@ -11,7 +11,7 @@ import { AccountRepository } from 'src/infrastructure/repositories/account.repos
 import { WalletRepository } from 'src/infrastructure/repositories/wallet.repository';
 import { TokenEncryptionUtil } from 'src/config/utils/TokenEncryptionUtil';
 import { TransactionRepository } from 'src/infrastructure/repositories/transaction.repository';
-import { Wallet } from 'src/domain/entities/wallet.entity';
+// import { Wallet } from 'src/domain/entities/wallet.entity';
 
 @Injectable()
 export class AuthService {
@@ -29,127 +29,36 @@ export class AuthService {
    private getOtpExpiry(minutes = 10): Date {
     return new Date(Date.now() + minutes * 60 * 1000);
   }
-  async signUp(signUpDto: SignUpDto) {
+   async signUp(signUpDto: SignUpDto) {
     try {
-      const existingUser = await this.userRepository.findByEmail(signUpDto.email);
-      if (existingUser) throw new HttpException('User already exists', HttpStatus.BAD_REQUEST);
-
-      const existingAccount = await this.accountRepository.findByBusinessId(signUpDto.businessId);
-      if (existingAccount) throw new HttpException('Business ID already exists', HttpStatus.BAD_REQUEST);
+      const existingUser = await this.userRepository.findByEmail( signUpDto.email);
+      if (existingUser) throw new HttpException('Email already exists', HttpStatus.BAD_REQUEST);
 
       const hashedPassword = await hash(signUpDto.password, 10);
       const otp = crypto.randomInt(100000, 999999).toString();
       const verificationExpiresAt = this.getOtpExpiry();
 
+
       const user = await this.userRepository.createUser({
-        ...signUpDto,
+     ...signUpDto,
         name: `${signUpDto.firstName} ${signUpDto.lastName}`,
         password: hashedPassword,
         verificationCode: otp,
         verificationExpiresAt,
-        verified: false,
+        isVerified: false,
         referral_code: crypto.randomBytes(5).toString('hex'),
       });
+console.log(user)
+    
+        await this.emailService.sendVerificationEmail(signUpDto.email, otp);
+   
 
-      const account = await this.accountRepository.save(
-        this.accountRepository.create({
-          businessId: signUpDto.businessId,
-          business_name: signUpDto.business_name,
-          business_type: signUpDto.business_type,
-          checkout_settings: {
-            customization: {
-              primaryColor: '#035c22',
-              brandName: signUpDto.business_name,
-              showLogo: true,
-              showBrandName: false,
-              secondaryColor: '#eaeaea',
-            },
-            card: true,
-            bank_transfer: true,
-          },
-          merchantCode: `SUB_${crypto.randomBytes(8).toString('hex')}`,
-          superMerchantCode: `CUS_${crypto.randomBytes(8).toString('hex')}`,
-          webhook_url: 'https://3y10e3mvk2.execute-api.us-east-2.amazonaws.com/production/hooks/test-outbound',
-          settlementType: { settledType: 'flexible', fee: '0' },
-          FPR: { merchant: false, customer: true },
-          YPEM: { bankAccount: false, payoutBalance: true },
-          users: [user],
-          isVulaUser: false,
-          is_identity_only: false,
-          is_regular: true,
-          is_otc: false,
-          is_portco: false,
-          is_tx: false,
-          is_vc: false,
-          isLive: false,
-          dated: new Date(),
-        }),
-      );
-      console.log(`Account created: ${account.id} for businessId: ${account.businessId}`);
-
-      // Initialize balances for each currency (default to NGN if none provided)
-      const currencies = signUpDto.currencies && signUpDto.currencies.length > 0 ? signUpDto.currencies : ['NGN'];
-      const walletData: Partial<Wallet> = {
-        balances: currencies.map(currency => ({
-          currency,
-          collection_balance: 0,
-          payout_balance: 1000,// Initialize with 1000 units
-          api_balance: currency === 'NGN' ? 0 : undefined,
-        })),
-        account,
-      };
-      const wallet = await this.walletRepository.save(
-        this.walletRepository.create(walletData),
-      );
-      console.log(`Wallet created: ${wallet.id} for account: ${account.id}`);
-
-      // Create initial transaction for each currency
-      const initialTransactions = [];
-      for (const currency of currencies) {
-        // const balance = wallet.balances.find(b => b.currency === currency);
-        const transaction = this.transactionRepository.create({
-          eventname: 'Initial Funding',
-          transtype: 'credit',
-          total_amount: 1000,
-          settled_amount: 1000,
-          fee_charged: 0,
-          currency_settled: currency,
-          dated: new Date(),
-          status: 'success',
-          initiator: user.email,
-          type: 'Inflow',
-          transactionid: `flick-${crypto.randomUUID()}`,
-          narration: `Initial wallet funding for ${currency} on signup`,
-          balance_before: 0,
-          balance_after: 1000,
-          channel: 'system',
-          beneficiary_bank: null,
-          email: user.email,
-          wallet,
-        });
-        await this.transactionRepository.save(transaction);
-        console.log(`Transaction created: ${transaction.transactionid} for currency: ${currency}`);
-        initialTransactions.push({
-          transactionid: transaction.transactionid,
-          amount: transaction.total_amount,
-          currency: transaction.currency_settled,
-          status: transaction.status,
-          dated: transaction.dated,
-        });
-      }
-
-      await this.emailService.sendVerificationEmail(user.email, otp);
-
-      return {
-        message: 'Signup successful, check your email for OTP',
-        user: { id: user.id, email: user.email },
-        account: { id: account.id, businessId: account.businessId },
-        wallet: { id: wallet.id, balances: wallet.balances },
-        initialTransactions,
-      };
+      return { message: 'Please verify your email with the OTP sent', 
+        data: user
+       };
     } catch (error) {
       if (error instanceof HttpException) throw error;
-      console.error('Signup error:', error);
+      console.error('Sign up error:', error);
       throw new HttpException('Failed to sign up', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
@@ -160,7 +69,7 @@ export class AuthService {
     const user = await this.userRepository.findByEmail(email);
     if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
 
-    if (user.verified) throw new HttpException('Email already verified', HttpStatus.BAD_REQUEST);
+    if (user.isVerified) throw new HttpException('Email already verified', HttpStatus.BAD_REQUEST);
 
     if (user.verificationCode !== otp || !user.verificationExpiresAt || user.verificationExpiresAt < new Date()) {
       throw new HttpException('Invalid or expired OTP', HttpStatus.BAD_REQUEST);
@@ -168,7 +77,7 @@ export class AuthService {
      if (new Date() > user.verificationExpiresAt!) throw new Error('OTP expired');
 
     await this.userRepository.updateUser(user.id, {
-      verified: true,
+      isVerified: true,
       verificationCode: null,
       verificationExpiresAt: null,
     });
@@ -215,7 +124,7 @@ export class AuthService {
     const expiresAt = this.getOtpExpiry()
 
     if (type === 'verification') {
-      if (user.verified) throw new HttpException('Email already verified', HttpStatus.BAD_REQUEST);
+      if (user.isVerified) throw new HttpException('Email already verified', HttpStatus.BAD_REQUEST);
       await this.userRepository.updateUser(user.id, {
         verificationCode: otp,
         verificationExpiresAt: expiresAt,
@@ -268,10 +177,12 @@ export class AuthService {
     try{
     const { email, password } = loginDto;                 
     const user = await this.userRepository.findByEmail(email);
+    console.log(loginDto.email, "and", email)
+    console.log(user)
     if (!user) throw new HttpException('Invalid credentials', HttpStatus.UNAUTHORIZED);
 
-    if (!user.verified) throw new HttpException('Email not verified', HttpStatus.FORBIDDEN);
-
+    if (!user.isVerified) throw new HttpException('Email not verified', HttpStatus.FORBIDDEN);
+      console.log("Verification",user.isVerified)
     const isPasswordValid = await compare(password, user.password);
     if (!isPasswordValid) throw new HttpException('Invalid credentials', HttpStatus.UNAUTHORIZED);
 
@@ -294,3 +205,4 @@ export class AuthService {
 
 
 }
+

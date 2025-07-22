@@ -31,6 +31,9 @@ import { PaymentPage } from './domain/entities/payment.entity';
 import { EncryptionUtil } from './config/utils/EncryptionUtil';
 import { Beneficiary } from './domain/entities/beneficiary.entity';
 import { BeneficiaryRepository } from './infrastructure/repositories/beneficiary.repository';
+import { CountryRepository } from './infrastructure/repositories/country.repository';
+import { Country } from './domain/entities/country.entity';
+import { ExchangeRateService } from './infrastructure/services/exchange-rate/exchange-rate.service';
 
 
 
@@ -42,14 +45,14 @@ import { BeneficiaryRepository } from './infrastructure/repositories/beneficiary
       load: [emailConfig],
     }),
     TypeOrmModule.forRoot(typeOrmConfig),
-    TypeOrmModule.forFeature([User, Account, Wallet, Transaction, Bank, PaymentPage, Beneficiary]), 
+    TypeOrmModule.forFeature([User, Account, Wallet, Transaction, Bank, PaymentPage, Beneficiary, Country]), 
     JwtModule.register({
       secret: process.env.JWT_SECRET,
-      signOptions: { expiresIn: '1h' },
+      signOptions: { expiresIn: '10h' },
     }),
   ],
   controllers: [AuthController, BusinessController],
-  providers: [AuthService, EmailService, BankService, UserRepository, AccountRepository, WalletRepository, TransactionRepository, BankRepository, JwtStrategy, BusinessService,TokenEncryptionUtil, PaymentPageRepository, EncryptionUtil, BeneficiaryRepository, ],
+  providers: [AuthService, EmailService, BankService, UserRepository, AccountRepository, WalletRepository, TransactionRepository, BankRepository, JwtStrategy, BusinessService,TokenEncryptionUtil, PaymentPageRepository, EncryptionUtil, BeneficiaryRepository, CountryRepository, ExchangeRateService ],
   exports: [AuthService, BusinessService],
 
 })

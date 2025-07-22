@@ -14,7 +14,7 @@ import {
 import { AuthService } from '../auth/auth';
 import { BankService } from '../infrastructure/services/banks/bank.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { AddBusinessDto, CreateChargeDto, FundPayoutBalanceDto, NGNCompletePayoutDto, NGNPayoutDto, NubanCreateMerchantDto } from '../application/dtos/auth.dto';
+import { AddBusinessDto, CreateChargeDto, FundPayoutBalanceDto, NGNCompletePayoutDto, NGNPayoutDto, NubanCreateMerchantDto, SaveBeneficiaryDto, USDPayoutDto } from '../application/dtos/auth.dto';
 import { BusinessService } from './business';
 
 
@@ -90,6 +90,15 @@ export class BusinessController {
   }
 
 
+  @Get('all-businesses')
+@UseGuards(JwtAuthGuard)
+@HttpCode(HttpStatus.OK)
+async getAllBusinesses(@Request() req) {
+  return this.businessService.getAllBusinesses(req.user.sub);
+}
+
+  
+
 
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
@@ -104,4 +113,38 @@ export class BusinessController {
   async completeNGNPayout(@Request() req, @Body() completeDto: NGNCompletePayoutDto) {
     return this.businessService.completeNGNPayout(req.user.sub, completeDto);
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('countries')
+  async getCountries() {
+    return this.businessService.getCountries();
+  }
+
+  @UseGuards(JwtAuthGuard)
+@Post('save-beneficiary')
+async saveBeneficiary(@Request() req, @Body() beneficiaryDto: SaveBeneficiaryDto) {
+  return this.businessService.saveBeneficiary(req.user.sub, beneficiaryDto);
 }
+
+@UseGuards(JwtAuthGuard)
+@Post('get-beneficiaries')
+async getBeneficiaries(@Request() req, @Body('accountId') accountId: string) {
+  return this.businessService.getBeneficiaries(req.user.sub, accountId);
+}
+
+  @UseGuards(JwtAuthGuard)
+  @Post('usd-payout')
+  async initiateUSDPayout(@Request() req, @Body() usdPayoutDto: USDPayoutDto) {
+    return this.businessService.initiateUSDPayout(req.user.sub, usdPayoutDto);
+  }
+
+  //   @UseGuards(JwtAuthGuard)
+  // @Post('create-payment-link')
+  // async createPaymentLink(@Request() req, @Body() createPaymentLinkDto: CreatePaymentLinkDto) {
+  //   return this.authService.createPaymentLink(req.user.sub, createPaymentLinkDto);
+  // }
+
+}
+
+
+

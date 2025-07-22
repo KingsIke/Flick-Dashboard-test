@@ -42,10 +42,14 @@ export class UserRepository {
 
   async createUser(data: Partial<User>): Promise<User> {
     const user = this.userRepository.create(data);
-    return this.userRepository.save(user);
+    return await this.userRepository.save(user);
   }
 
   async updateUser(id: string, data: Partial<User>): Promise<void> {
     await this.userRepository.update(id, data);
+  }
+
+  async save(user: User): Promise<User> {
+    return await this.userRepository.save(user);
   }
 }

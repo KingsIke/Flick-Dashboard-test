@@ -1,6 +1,9 @@
 /* eslint-disable prettier/prettier */
-import { IsArray, IsEmail, IsEnum, IsIn, IsNotEmpty, IsNumber, IsNumberString, IsOptional, IsString, Length, Matches } from 'class-validator';
-import {COUNTRIES, SUPPORTED_CURRENCIES } from  "../../config/utils/countriesUtil"
+import { ArrayMinSize, IsArray, IsBoolean, IsEmail, IsEnum, IsIn, IsNotEmpty, IsNumber, IsNumberString, IsOptional, IsString, Length, Matches, Max, Min, ValidateNested } from 'class-validator';
+import {COUNTRIES, SUPPORTED_CURRENCIES } from  "../../config/utils/countriesUtil";
+import { Type } from 'class-transformer';
+
+
 export class SignUpDto {
   @IsString()
   @IsNotEmpty()
@@ -119,10 +122,12 @@ export class LoginDto {
   password: string;
 }
 
-
 export class AddBusinessDto {
   @IsNumber()
   @IsNotEmpty()
+  @Min(1000000000, { message: 'businessId must be exactly 10 digits' }) // minimum 10-digit number
+  @Max(9999999999, { message: 'businessId must be exactly 10 digits' }) // maximum 10-digit number
+
   businessId: number;
 
   @IsString()
@@ -133,14 +138,114 @@ export class AddBusinessDto {
   @IsNotEmpty()
   business_type: string;
 
-  @IsArray()
-  @IsEnum(SUPPORTED_CURRENCIES, { each: true, message: 'Invalid currency' })
+   @IsArray()
+@ArrayMinSize(1, { message: 'At least one currency is required' })
+@IsEnum(SUPPORTED_CURRENCIES, { each: true, message: 'Invalid currency' })
+currencies: string[];
+
+  @IsString()
+  @IsNotEmpty()
+  account_type: string;
+
+  @IsString()
+  @IsNotEmpty()
+  country: string;
+
+
+@IsEnum(SUPPORTED_CURRENCIES, { each: true, message: 'Invalid currency' })
+  @IsNotEmpty()
+  currency: Currency;
+
+  @IsString()
+  @IsNotEmpty()
+  account_no: string;
+
+  @IsString()
+  @IsNotEmpty()
+  account_name: string;
+
+  @IsString()
+  @IsNotEmpty()
+  bank_name: string;
+
+  @IsString()
   @IsOptional()
-  currencies?: string[];
+  bank_code?: string;
+
+  @IsString()
+  @IsOptional()
+  bank_address?: string;
+
+  @IsString()
+  @IsOptional()
+  swift_code?: string;
+
+  @IsString()
+  @IsOptional()
+  sort_code?: string;
+
+  @IsString()
+  @IsOptional()
+  routing_number?: string;
+
+  @IsString()
+  @IsOptional()
+  iban?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isDomiciliary?: boolean;
 }
 
+// export class AddBusinessDto {
+//   @IsNumber()
+//   @IsNotEmpty()
+//   @Min(1000000000, { message: 'businessId must be exactly 10 digits' }) // minimum 10-digit number
+//   @Max(9999999999, { message: 'businessId must be exactly 10 digits' }) // maximum 10-digit number
+
+//   businessId: number;
+
+//   @IsString()
+//   @IsNotEmpty()
+//   business_name: string;
+
+//   @IsString()
+//   @IsNotEmpty()
+//   business_type: string;
+
+
+//   @IsArray()
+// @ArrayMinSize(1, { message: 'At least one currency is required' })
+// @IsEnum(SUPPORTED_CURRENCIES, { each: true, message: 'Invalid currency' })
+// currencies: string[];
+
+
+//   @IsString()
+// @IsNotEmpty()
+// country: string;
+// }
+
+// export class CreateChargeDto {
+//   @IsNumber()
+//   amount: number;
+
+//   @IsString()
+//   @IsNotEmpty()
+//   currency: string;
+
+//   @IsString()
+//   @IsNotEmpty()
+//   accountId: string;
+// }
+
+
 export class CreateChargeDto {
+  @IsString()
+  @IsNotEmpty()
+  accountId: string;
+
   @IsNumber()
+  @IsNotEmpty()
   amount: number;
 
   @IsString()
@@ -148,9 +253,38 @@ export class CreateChargeDto {
   currency: string;
 
   @IsString()
+  @IsOptional()
+  pageName?: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsString()
+  @IsOptional()
+  customLink?: string;
+
+  @IsString()
+  @IsOptional()
+  redirectLink?: string;
+
+  @IsString()
+  @IsOptional()
+  successmsg?: string;
+
+  @IsString()
   @IsNotEmpty()
-  accountId: string;
+  currency_collected: string;
+
+  @IsString()
+  @IsOptional()
+  currency_settled?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  productType: string;
 }
+
 
 export class CardDetailsDto {
   @IsString()
@@ -182,6 +316,10 @@ export class FundPayoutBalanceDto {
 
   @IsNumber()
   amount: number;
+
+   @IsString()
+  @IsOptional()
+  accountName?: string;
 
   @IsEnum(['bank_transfer', 'card', 'payout_balance'])
   method: 'bank_transfer' | 'card' | 'payout_balance';
@@ -244,6 +382,10 @@ export class NubanCreateMerchantDto {
 
   @IsString()
   @IsNotEmpty()
+  accountName: string;
+
+  @IsString()
+  @IsNotEmpty()
   @Length(10, 10, { message: 'Account number must be exactly 10 digits' })
   @Matches(/^\d{10}$/, { message: 'Account number must contain only digits' })
   accountNumber: string;
@@ -301,13 +443,19 @@ export class USDPayoutDto {
 
   @IsString()
   @IsNotEmpty()
-  @IsEnum(['USD'], { message: 'Currency must be USD' })
+  @IsEnum(['USD', 'GBP', 'CAD', 'EUR'], { message: 'Currency must be USD, EUR, CAD, GBP' })
   currency: string;
 
-  @IsString()
+  // @IsString()
+  // @IsNotEmpty()
+  // @IsEnum(['USD'], { message: 'Debit currency must be USD' })
+  // debit_currency: string;
+
   @IsNotEmpty()
-  @IsEnum(['USD'], { message: 'Debit currency must be USD' })
-  debit_currency: string;
+@IsString()
+@Matches(/^NGN$/i, { message: 'Debit currency must be NGN' })
+debit_currency: string;
+
 
   @IsString()
   @IsNotEmpty()
@@ -326,4 +474,125 @@ export class NGNCompletePayoutDto {
   @IsString()
   @IsNotEmpty()
   token: string;
+}
+
+// Recipient KYC nested DTO
+export class RecipientKycDto {
+  @IsString()
+  @IsNotEmpty()
+  type: string;
+
+  @IsString()
+  @IsNotEmpty()
+  number: string;
+
+  @IsString()
+  @IsNotEmpty()
+  issuedCountryCode: string;
+
+  @IsString()
+  @IsNotEmpty()
+  issuedBy: string;
+}
+
+// Save Beneficiary DTO
+export class SaveBeneficiaryDto {
+  @IsString()
+  @IsNotEmpty()
+  transfer_type: string;
+
+  @IsString()
+  @IsNotEmpty()
+  beneficiary_country: string;
+
+  @IsString()
+  @IsNotEmpty()
+  account_no: string;
+
+  @IsString()
+  @IsNotEmpty()
+  routing: string;
+
+  @IsString()
+  @IsNotEmpty()
+  bank_name: string;
+
+  @IsString()
+  @IsNotEmpty()
+  bank_city: string;
+
+  @IsString()
+  @IsNotEmpty()
+  bank_state: string;
+
+  @IsString()
+  @IsNotEmpty()
+  bank_country: string;
+
+  @IsString()
+  @IsNotEmpty()
+  beneficiary_address_1: string;
+
+  @IsString()
+  @IsNotEmpty()
+  beneficiary_city: string;
+
+  @IsString()
+  @IsNotEmpty()
+  beneficiary_state: string;
+
+  @IsString()
+  @IsNotEmpty()
+  beneficiary_name: string;
+
+  @IsString()
+  @IsNotEmpty()
+  countrycode: string;
+
+  @IsBoolean()
+  is_domiciliary: boolean;
+
+  @IsBoolean()
+  is_individual: boolean;
+
+  @IsString()
+  @IsNotEmpty()
+  recipient_firstname: string;
+
+  @IsString()
+  @IsNotEmpty()
+  recipient_lastname: string;
+
+  @ValidateNested()
+  @Type(() => RecipientKycDto)
+  recipient_kyc: RecipientKycDto;
+
+  @IsString()
+  @IsNotEmpty()
+  accountId: string;
+}
+
+
+export enum Currency {
+  USD = 'USD',
+  GBP = 'GBP',
+  EUR = 'EUR',
+}
+
+export class UsdPayoutDto {
+  @IsString()
+  @IsNotEmpty()
+  accountId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  beneficiaryId: string;
+
+  @IsNumberString()
+  @IsNotEmpty()
+  amount: string;
+
+  @IsEnum(Currency)
+  @IsNotEmpty()
+  currency: Currency;
 }

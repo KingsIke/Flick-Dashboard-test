@@ -59,7 +59,10 @@ export class PaymentPage {
   @Column()
   dated: Date;
 
-  @Column()
+  // @Column()
+  // amount: number;
+
+  @Column({ nullable: true })
   amount: string;
 
   @Column({ nullable: true })

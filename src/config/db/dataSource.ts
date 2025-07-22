@@ -6,6 +6,8 @@ import { Transaction } from '../../domain/entities/transaction.entity';
 import { User } from '../../domain/entities/user.entity';
 import { Wallet } from '../../domain/entities/wallet.entity';
 import { PaymentPage } from '../../domain/entities/payment.entity';
+import { Country } from '../../domain/entities/country.entity';
+import { Beneficiary } from "../../domain/entities/beneficiary.entity";
 
 
 export const AppDataSource = new DataSource({
@@ -16,6 +18,6 @@ export const AppDataSource = new DataSource({
   password: '453622Ike',
   database: 'flickTest',
   synchronize: true,
-  entities: [User, Account, Wallet, Transaction, Bank, PaymentPage],
+  entities: [User, Account, Wallet, Transaction, Bank, PaymentPage, Country,  Beneficiary],
   migrations: ['src/migrations/**/*{.ts,.js}'],
 });

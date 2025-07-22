@@ -1,8 +1,9 @@
 /* eslint-disable prettier/prettier */
-import { Entity, Column, PrimaryGeneratedColumn, ManyToMany, OneToOne, OneToMany } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToMany, OneToOne, OneToMany, JoinTable } from 'typeorm';
 import { User } from './user.entity';
 import { Wallet } from './wallet.entity';
 import { PaymentPage } from './payment.entity';
+import { Beneficiary } from './beneficiary.entity';
 
 
 @Entity('accounts')
@@ -31,6 +32,10 @@ export class Account {
     card: boolean;
     bank_transfer: boolean;
   };
+
+  @Column({ type: 'text', array: true, nullable: true })
+currencies: string[];
+
 
   @Column({ nullable: true })
   merchantCode?: string;
@@ -83,15 +88,70 @@ export class Account {
     payoutBalance: boolean;
   };
 
+  
+  
+    @Column()
+    account_type: string;
+  
+    @Column()
+    country: string;
+  
+    @Column()
+    currency: string;
+  
+    @Column()
+    account_no: string;
+  
+    @Column()
+    account_name: string;
+  
+    @Column()
+    bank_name: string;
+  
+    @Column({ nullable: true })
+    bank_code: string;
+  
+    @Column({ nullable: true })
+    bank_address: string;
+  
+    @Column({ nullable: true })
+    swift_code: string;
+  
+    @Column({ nullable: true })
+    sort_code: string;
+  
+    @Column({ nullable: true })
+    routing_number: string;
+  
+    @Column({ nullable: true })
+    iban: string;
+  
+    @Column({ default: false })
+    is_domiciliary: boolean;
+
+     @OneToOne(() => Wallet, (wallet) => wallet.account, { cascade: true })
+  wallet: Wallet;
+
+  @ManyToMany(() => User, (user) => user.accounts)
+  @JoinTable()
+  users: User[];
+
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   dated: Date;
 
-  @ManyToMany(() => User, (user) => user.accounts)
-  users: User[];
+  // @ManyToMany(() => User, (user) => user.accounts)
+  // users: User[];
 
-  @OneToOne(() => Wallet, (wallet) => wallet.account, { cascade: true })
-  wallet: Wallet;
+  // @OneToOne(() => Wallet, (wallet) => wallet.account, { cascade: true })
+  // wallet: Wallet;
   
   @OneToMany(() => PaymentPage, (paymentPage) => paymentPage.account)
   paymentPages: PaymentPage[];
+
+  
+    // @OneToMany(() => Wallet, (wallet) => wallet.account)
+    // wallets: Wallet[];
+  
+    @OneToMany(() => Beneficiary, (beneficiary) => beneficiary.account)
+    beneficiaries: Beneficiary[];
 }

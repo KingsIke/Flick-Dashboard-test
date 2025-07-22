@@ -7,6 +7,7 @@ import { Transaction } from '../../domain/entities/transaction.entity';
 import { User } from '../../domain/entities/user.entity';
 import { Wallet } from '../../domain/entities/wallet.entity';
 import { PaymentPage } from '../../domain/entities/payment.entity';
+import { Beneficiary } from '../../domain/entities/beneficiary.entity';
 
 dotenv.config();
 
@@ -17,7 +18,7 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
   username: "postgres",
   password: "453622Ike",
   database: "flickTest",
- entities: [User, Account, Wallet, Transaction, Bank, PaymentPage],
+ entities: [User, Account, Wallet, Transaction, Bank, PaymentPage,  Beneficiary],
   synchronize: true,
   migrations: [__dirname + '/../migrations/*{.ts,.js}'],
   migrationsRun: true,

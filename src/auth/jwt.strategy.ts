@@ -35,22 +35,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-//   async validate(req: any, payload: any) {
-//         try {
-//     const authHeader = req.headers.authorization;
-//     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-//       return null;
-//     }
-//     const encryptedToken = authHeader.replace('Bearer ', '');
-//     const decryptedToken = this.tokenEncryptionUtil.decryptToken(encryptedToken);
-   
-
-//       const verifiedPayload = this.jwtService.verify(decryptedToken);
-//       return { sub: verifiedPayload.sub, email: verifiedPayload.email };
-//     } catch (error) {
-//       return null;
-//     }
-//   }
   async validate(payload: any) {
     return { sub: payload.sub, email: payload.email };
   }

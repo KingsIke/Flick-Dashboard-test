@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier */
-import { Entity, Column, PrimaryGeneratedColumn, ManyToMany, JoinTable } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToMany, JoinTable, Index } from 'typeorm';
 import { Account } from './account.entity';
 
 @Entity('users')
@@ -17,13 +17,11 @@ export class User {
   name: string;
 
   @Column({ unique: true })
+  @Index()
   email: string;
 
   @Column()
   password: string;
-
-  @Column({ default: false })
-  verified: boolean;
 
   @Column({ nullable: true })
   verificationCode?: string;

@@ -3,7 +3,7 @@ import { Repository } from 'typeorm';
 import { Bank } from '../../domain/entities/bank.entity';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Beneficiary } from 'src/domain/entities/beneficiary.entity';
+import { Beneficiary } from '../../domain/entities/beneficiary.entity';
 
 @Injectable()
 export class BankRepository {
