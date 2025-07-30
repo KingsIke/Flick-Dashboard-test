@@ -367,6 +367,23 @@ export class FundPayoutBalanceDto {
   accountNumber?: string;
 }
 
+export class FundWalletDto {
+  @IsString()
+  @IsNotEmpty()
+  accountId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  currency_collected: string;
+
+  @IsString()
+  @IsNotEmpty()
+  amount: string;
+
+  @IsString()
+  @IsNotEmpty()
+  call_source: string;
+}
 export class NubanCreateMerchantDto {
   @IsString()
   @IsNotEmpty()
@@ -453,7 +470,7 @@ export class USDPayoutDto {
 
   @IsNotEmpty()
 @IsString()
-@Matches(/^NGN$/i, { message: 'Debit currency must be NGN' })
+// @Matches(/^NGN$/i, { message: 'Debit currency must be NGN' })
 debit_currency: string;
 
 
@@ -464,6 +481,29 @@ debit_currency: string;
   @IsString()
   @IsNotEmpty()
   accountId: string;
+  
+  @IsString()
+  @IsOptional()
+  transactionId?: string;
+}
+export class ConvertAndFundDto {
+  @IsString()
+  @IsNotEmpty()
+  accountId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  amount: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsIn(['NGN', 'USD', 'CAD', 'EUR', 'GBP'], { message: 'Invalid target currency' })
+  targetCurrency: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsIn(['NGN', 'USD', 'CAD', 'EUR', 'GBP'], { message: 'Invalid source currency' })
+  sourceCurrency: string;
 }
 
 export class NGNCompletePayoutDto {

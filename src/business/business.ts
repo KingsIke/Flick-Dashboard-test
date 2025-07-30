@@ -1,7 +1,7 @@
 /* eslint-disable prettier/prettier */
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { AddBusinessDto, CardDetailsDto, CreateChargeDto, FundPayoutBalanceDto, NGNCompletePayoutDto, NGNPayoutDto, NubanCreateMerchantDto, SaveBeneficiaryDto, USDPayoutDto } from '../application/dtos/auth.dto';
+import { AddBusinessDto, CardDetailsDto, ConvertAndFundDto, CreateChargeDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanCreateMerchantDto, SaveBeneficiaryDto, USDPayoutDto } from '../application/dtos/auth.dto';
 import { AccountRepository } from '../infrastructure/repositories/account.repository';
 import { TransactionRepository } from '../infrastructure/repositories/transaction.repository';
 import { UserRepository } from '../infrastructure/repositories/user.repository';
@@ -18,7 +18,7 @@ import { CountryRepository } from '../infrastructure/repositories/country.reposi
 import { BeneficiaryRepository } from '../infrastructure/repositories/beneficiary.repository';
 import { ExchangeRateService } from '../infrastructure/services/exchange-rate/exchange-rate.service';
 import { Beneficiary } from '../domain/entities/beneficiary.entity';
-import { Console } from 'console';
+// import { Console } from 'console';
 // import { Wallet } from 'src/domain/entities/wallet.entity';
 
 
@@ -48,75 +48,9 @@ export class BusinessService {
 
 
 
-  // async addBusiness(userId: string, addBusinessDto: AddBusinessDto) {
-  //   try {
-  //     const user = await this.userRepository.findOne({ where: { id: userId } });
-  //     if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
 
-  //      const existingAccount = await this.accountRepository.findByBusinessId(addBusinessDto.businessId);
-  //     if (existingAccount) throw new HttpException('Business ID already exists', HttpStatus.BAD_REQUEST);
 
-  //      const existingAccountByName = await this.accountRepository.findOne({
-  //     where: { business_name: addBusinessDto.business_name },
-  //   });
-  //   if (existingAccountByName) {
-  //     throw new HttpException('Business name already exists', HttpStatus.BAD_REQUEST);
-  //   }
-  //      const existingAccountCurriency = await this.accountRepository.findOne({
-  //       where: {
-  //   currencies: addBusinessDto.currencies ? addBusinessDto.currencies[0] : undefined,
-  // },
-  //   });
-  //   if (existingAccountCurriency) {
-  //     throw new HttpException('Customer Business with such currency already exists', HttpStatus.BAD_REQUEST);
-  //   }
-
-  //     const account = this.accountRepository.create({
-  //       ...addBusinessDto,
-  //       users: [user],
-  //     });
-
-  //     await this.accountRepository.save(account);
-
-  //     const wallet = this.walletRepository.create({
-  //       account,
-  //       account_id: account.id,
-  //       balances: [{ currency: 'NGN', api_balance: 0 }]
-
-  //     });
-  //     await this.walletRepository.save(wallet);
-
-  //     const transactionId = `flick-${crypto.randomUUID()}`;
-  //     const initialFunding = this.transactionRepository.create({
-  //       eventname: 'Initial Funding',
-  //       transtype: 'credit',
-  //       total_amount: 1000,
-  //       settled_amount: 1000,
-  //       fee_charged: 0,
-  //       currency_settled: 'NGN',
-  //       dated: new Date(),
-  //       status: 'success',
-  //       initiator: user.email,
-  //       type: 'Inflow',
-  //       transactionid: transactionId,
-  //       narration: 'Initial wallet funding for NGN on signup',
-  //       balance_before: 0,
-  //       balance_after: 1000,
-  //       channel: 'system',
-  //       email: user.email,
-  //       wallet,
-  //     });
-  //     await this.transactionRepository.save(initialFunding);
-
-  //     return { message: 'Business added successfully', accountId: account.id };
-  //   } catch (error) {
-  //     if (error instanceof HttpException) throw error;
-  //     console.error('Add business error:', error);
-  //     throw new HttpException('Failed to add business', HttpStatus.INTERNAL_SERVER_ERROR);
-  //   }
-  // }
-
-  async addBusiness(userId: string, addBusinessDto: AddBusinessDto) {
+  async addBusiness1(userId: string, addBusinessDto: AddBusinessDto) {
     try {
       const user = await this.userRepository.findOne({ where: { id: userId } });
       if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
@@ -184,7 +118,83 @@ const wallet = this.walletRepository.create({
       throw new HttpException('Failed to add business', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+ async addBusiness(userId: string, addBusinessDto: AddBusinessDto) {
+    try {
+      console.log('1: Adding business for userId:', userId, 'DTO:', addBusinessDto);
+      const user = await this.userRepository.findOne({ where: { id: userId } });
+      if (!user) {
+        console.error('User not found for ID:', userId);
+        throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+      }
 
+      const primaryCurrency = addBusinessDto.currencies?.[0] ?? 'NGN';
+      console.log('2: Primary currency:', primaryCurrency);
+
+      const account = await this.accountRepository.save(
+        this.accountRepository.create({
+          ...addBusinessDto,
+          account_type: 'merchant',
+          currency: primaryCurrency,
+          users: [user],
+        })
+      );
+      console.log('3: Created account with ID:', account.id);
+
+      const initialFundingAmount = 1000;
+      const wallet = this.walletRepository.create({
+        account,
+        account_id: account.id,
+        balances: [
+          {
+            currency: primaryCurrency,
+            api_balance: 0,
+            payout_balance: initialFundingAmount,
+            collection_balance: initialFundingAmount,
+          },
+        ],
+      });
+      console.log('4: Created wallet with initial balances:', JSON.stringify(wallet.balances));
+
+      await this.walletRepository.save(wallet);
+      console.log('5: Saved wallet with ID:', wallet.id);
+
+      const transactionId = `flick-${crypto.randomUUID()}`;
+      const initialFunding = this.transactionRepository.create({
+        eventname: `Initial Funding ${primaryCurrency}`,
+        transtype: 'credit',
+        total_amount: initialFundingAmount,
+        settled_amount: initialFundingAmount,
+        fee_charged: 0,
+        currency_settled: primaryCurrency,
+        dated: new Date(),
+        status: 'success',
+        initiator: user.email,
+        type: 'Inflow',
+        transactionid: transactionId,
+        narration: `Initial wallet funding for ${primaryCurrency} on signup`,
+        balance_before: 0,
+        balance_after: initialFundingAmount,
+        channel: 'system',
+        email: user.email,
+        wallet,
+      });
+      console.log('6: Created initial funding transaction:', transactionId);
+      await this.transactionRepository.save(initialFunding);
+      console.log('7: Saved initial funding transaction');
+
+      console.log('8: Business added successfully');
+      return { message: 'Business added successfully', accountId: account.id, walletId: wallet.id };
+    } catch (error) {
+      console.error('Add business error:', error);
+       if (error instanceof HttpException) throw error;
+      console.error('Add business error:', error);
+
+      throw new HttpException(
+        error.message || 'Failed to add business',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
   // async createCharge(userId: string, createChargeDto: CreateChargeDto) {
   //   try {
   //     const user = await this.userRepository.findOne({ where: { id: userId } });
@@ -846,6 +856,181 @@ async getPaymentLinks(userId: string) {
     }
   }
 
+     async fundWallet1(userId: string, fundWalletDto: FundWalletDto) {
+    try {
+      console.log('1: Funding wallet for userId:', userId, 'DTO:', fundWalletDto);
+      const account = await this.accountRepository.findOne({
+        where: { id: fundWalletDto.accountId, users: { id: userId } },
+        relations: ['wallet'],
+      });
+      if (!account || !account.wallet) throw new HttpException('Account or wallet not found', HttpStatus.NOT_FOUND);
+
+      const wallet = account.wallet;
+      const currency = fundWalletDto.currency_collected;
+      const amount = parseFloat(fundWalletDto.amount.toString()) / 100; // Convert cents to units
+      const charges = amount * 0.0002; // Mimic FUND_WALLET_LINK charges
+      const amountPayable = amount + charges;
+
+      console.log('2: Updating balance for currency:', currency, 'amountPayable:', amountPayable);
+      let targetBalance = wallet.balances.find(b => b.currency === currency);
+      if (!targetBalance) {
+        targetBalance = { currency, api_balance: 0, payout_balance: 0, collection_balance: 0 };
+        wallet.balances.push(targetBalance);
+      }
+      targetBalance.payout_balance += amountPayable;
+      targetBalance.collection_balance += amountPayable;
+      await this.walletRepository.save(wallet);
+
+      console.log('3: Creating funding transaction');
+      const transactionId = `Flick-${crypto.randomUUID()}`;
+      const user = await this.userRepository.findOne({ where: { id: userId } });
+      const transaction = this.transactionRepository.create({
+        eventname: `Funding ${currency}`,
+        transtype: 'credit',
+        total_amount: amount,
+        settled_amount: amountPayable,
+        fee_charged: charges,
+        currency_settled: currency,
+        dated: new Date(),
+        status: 'initiated',
+        initiator: user.email,
+        type: 'Inflow',
+        transactionid: transactionId,
+        narration: `Funding of ${amountPayable} ${currency}`,
+        balance_before: targetBalance.payout_balance - amountPayable,
+        balance_after: targetBalance.payout_balance,
+        channel: 'external',
+        email: user.email,
+        wallet,
+      });
+
+      console.log('4: Saving funding transaction');
+      await this.transactionRepository.save(transaction);
+
+      console.log('5: Funding successful');
+      return {
+        statusCode: 200,
+        status: 'success',
+        message: 'Transaction created successfully',
+        data: {
+          transactionId,
+          url: `https://checkout.global.paywithflick.co/pages/${crypto.randomBytes(8).toString('base64url')}`,
+          currency,
+          currency_collected: currency,
+          nairaEquivalent: 0,
+          amount,
+          charges,
+          amountPayable,
+          payableFxAmountString: `${currency === 'USD' ? '$' : currency === 'GBP' ? '£' : currency === 'NGN' ? '₦' : '€'}${amountPayable.toFixed(2)}`,
+          payableAmountString: `${currency === 'USD' ? '$' : currency === 'GBP' ? '£' : currency === 'NGN' ? '₦' : '€'}${amountPayable.toFixed(2)}`,
+          rate: 1,
+          currency_settled: currency,
+        },
+      };
+    } catch (error) {
+      console.error('Fund wallet error:', error);
+      throw new HttpException(
+        error.message || 'Failed to fund wallet',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+
+  async fundWallet(userId: string, fundWalletDto: FundWalletDto) {
+  try {
+    const allowedCurrencies = ['EUR', 'GBP', 'USD','NGN'];
+    const currency = fundWalletDto.currency_collected?.toUpperCase();
+
+    if (!allowedCurrencies.includes(currency)) {
+      throw new HttpException(`Funding in ${currency} is not supported`, HttpStatus.BAD_REQUEST);
+    }
+
+    console.log('1: Funding wallet for userId:', userId, 'DTO:', fundWalletDto);
+
+    const account = await this.accountRepository.findOne({
+      where: { id: fundWalletDto.accountId, users: { id: userId } },
+      relations: ['wallet'],
+    });
+
+    if (!account || !account.wallet) {
+      throw new HttpException('Account or wallet not found', HttpStatus.NOT_FOUND);
+    }
+
+    const wallet = account.wallet;
+    const amount = parseFloat(fundWalletDto.amount.toString()) 
+    const charges = amount * 0.0002; 
+    const amountPayable = amount;
+
+    console.log('2: Updating balance for currency:', currency, 'amountPayable:', amountPayable);
+
+    let targetBalance = wallet.balances.find(b => b.currency === currency);
+    if (!targetBalance) {
+      targetBalance = { currency, api_balance: 0, payout_balance: 0, collection_balance: 0 };
+      wallet.balances.push(targetBalance);
+    }
+
+    targetBalance.payout_balance += amountPayable;
+    targetBalance.collection_balance += amountPayable;
+    await this.walletRepository.save(wallet);
+
+    console.log('3: Creating funding transaction');
+    const transactionId = `Flick-${crypto.randomUUID()}`;
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    const transaction = this.transactionRepository.create({
+      eventname: `Funding ${currency}`,
+      transtype: 'credit',
+      total_amount: amount,
+      settled_amount: amountPayable,
+      fee_charged: charges,
+      currency_settled: currency, 
+      dated: new Date(),
+      status: 'initiated',
+      initiator: user.email,
+      type: 'Inflow',
+      transactionid: transactionId,
+      narration: `Funding of ${amountPayable} ${currency}`,
+      balance_before: targetBalance.payout_balance - amountPayable,
+      balance_after: targetBalance.payout_balance,
+      channel: 'external',
+      email: user.email,
+      wallet,
+    });
+
+    console.log('4: Saving funding transaction');
+    await this.transactionRepository.save(transaction);
+
+    console.log('5: Funding successful');
+    const symbol = currency === 'USD' ? '$' : currency === 'GBP' ? '£' : '€';
+
+    return {
+      statusCode: 200,
+      status: 'success',
+      message: 'Transaction created successfully',
+      data: {
+        transactionId,
+        url: `https://checkout.global.paywithflick.co/pages/${crypto.randomBytes(8).toString('base64url')}`,
+        currency,
+        currency_collected: currency,
+        nairaEquivalent: 0,
+        amount,
+        charges,
+        amountPayable,
+        payableFxAmountString: `${symbol}${amountPayable.toFixed(2)}`,
+        payableAmountString: `${symbol}${amountPayable.toFixed(2)}`,
+        rate: 1,
+        currency_settled: currency,
+      },
+    };
+  } catch (error) {
+    console.error('Fund wallet error:', error);
+    throw new HttpException(
+      error.message || 'Failed to fund wallet',
+      error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+  }
+}
   //  async getBalances(userId: string) {
   //   try {
   //     const user = await this.userRepository.findOne({ where: { id: userId }, relations: ['accounts', 'accounts.wallet', 'accounts.wallet.transactions'] });
@@ -899,7 +1084,7 @@ async getPaymentLinks(userId: string) {
   //   }
   // }
 
-  async getBalances(userId: string) {
+  async getBalances1(userId: string) {
     try {
       const user = await this.userRepository.findOne({
         where: { id: userId },
@@ -918,7 +1103,7 @@ async getPaymentLinks(userId: string) {
         const transactions = account.wallet.transactions || [];
         transactions.forEach(tx => {
           if (!['completed', 'success'].includes(tx.status)) return;
-          const currency = tx.currency_settled;
+          const currency = tx.currency_settled.toUpperCase();
           if (!balancesByCurrency[currency]) {
             balancesByCurrency[currency] = {
               currency,
@@ -969,6 +1154,121 @@ async getPaymentLinks(userId: string) {
       if (error instanceof HttpException) throw error;
       console.error('Get balances error:', error);
       throw new HttpException('Failed to retrieve balances', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async getBalances2(userId: string) {
+  try {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['accounts', 'accounts.wallet', 'accounts.wallet.transactions'],
+    });
+
+    if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+
+    const balancesByCurrency = {};
+
+    user.accounts.forEach(account => {
+      const wallet = account.wallet;
+      if (!wallet) {
+        console.warn(`Account ${account.id} (businessId: ${account.businessId}) has no wallet`);
+        return;
+      }
+
+      // Process transactions
+      const transactions = wallet.transactions || [];
+      transactions.forEach(tx => {
+        if (!['completed', 'success'].includes(tx.status)) return;
+
+        const currency = tx.currency_settled.toUpperCase(); // normalize
+        if (!balancesByCurrency[currency]) {
+          balancesByCurrency[currency] = {
+            currency,
+            collection_balance: 0,
+            payout_balance: 0,
+            api_balance: 0,
+          };
+        }
+
+        const amount = parseFloat(tx.settled_amount.toString());
+        if (isNaN(amount)) {
+          console.warn(`Invalid settled_amount for transaction ${tx.transactionid}: ${tx.settled_amount}`);
+          return;
+        }
+
+        if (tx.type === 'Inflow' && tx.eventname !== 'Fund API Balance') {
+          balancesByCurrency[currency].collection_balance += amount;
+          balancesByCurrency[currency].payout_balance += amount;
+        } else if (tx.type === 'Outflow') {
+          balancesByCurrency[currency].payout_balance -= amount;
+        } else if (tx.eventname === 'Fund API Balance') {
+          balancesByCurrency[currency].api_balance += amount;
+        }
+      });
+
+      // Merge wallet balances
+      const walletBalances = wallet.balances || [];
+      walletBalances.forEach(balance => {
+        const currency = balance.currency.toUpperCase(); // normalize
+
+        if (!balancesByCurrency[currency]) {
+          balancesByCurrency[currency] = {
+            currency,
+            collection_balance: balance.collection_balance || 0,
+            payout_balance: balance.payout_balance || 0,
+            api_balance: balance.api_balance || 0,
+          };
+        } else {
+          balancesByCurrency[currency].collection_balance += balance.collection_balance || 0;
+          balancesByCurrency[currency].payout_balance += balance.payout_balance || 0;
+          balancesByCurrency[currency].api_balance += balance.api_balance || 0;
+        }
+      });
+    });
+
+    return {
+      status: 200,
+      message: 'Balance retrieved successfully',
+      data: Object.values(balancesByCurrency),
+    };
+  } catch (error) {
+    if (error instanceof HttpException) throw error;
+    console.error('Get balances error:', error);
+    throw new HttpException('Failed to retrieve balances', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+
+  async getBalances(userId: string, accountId: string) {
+    try {
+      console.log('1: Fetching balances for userId:', userId, 'accountId:', accountId);
+      const account = await this.accountRepository.findOne({
+        where: { id: accountId, users: { id: userId } },
+        relations: ['wallet'],
+      });
+      if (!account || !account.wallet) {
+        console.error('Account or wallet not found for accountId:', accountId);
+        throw new HttpException('Account or wallet not found', HttpStatus.NOT_FOUND);
+      }
+
+      const wallet = account.wallet;
+      console.log('2: Wallet ID:', wallet.id, 'Balances:', JSON.stringify(wallet.balances));
+
+      return {
+        status: 200,
+        message: 'Balance retrieved successfully',
+        data: wallet.balances.map(balance => ({
+          currency: balance.currency,
+          collection_balance: Number(balance.collection_balance.toFixed(2)),
+          payout_balance: Number(balance.payout_balance.toFixed(2)),
+          api_balance: Number(balance.api_balance.toFixed(2)),
+        })),
+      };
+    } catch (error) {
+      console.error('Get balances error:', error);
+      throw new HttpException(
+        error.message || 'Failed to retrieve balances',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
   async initiateNGNPayout(userId: string, payoutDto: NGNPayoutDto) {
@@ -2256,354 +2556,606 @@ async getTransactions(accountId: string) {
       //   }
       // }
 
-async initiateUSDPayout1(userId: string, payoutDto: USDPayoutDto) {
-  try {
-    const account = await this.accountRepository.findOne({
-      where: { id: payoutDto.accountId, users: { id: userId } },
-      relations: ['wallet', 'wallet.transactions'],
-    });
-    if (!account) throw new HttpException('Account not found or unauthorized', HttpStatus.NOT_FOUND);
+// async initiateUSDPayout1(userId: string, payoutDto: USDPayoutDto) {
+//   try {
+//     const account = await this.accountRepository.findOne({
+//       where: { id: payoutDto.accountId, users: { id: userId } },
+//       relations: ['wallet', 'wallet.transactions'],
+//     });
+//     if (!account) throw new HttpException('Account not found or unauthorized', HttpStatus.NOT_FOUND);
 
-    if (!account.wallet) throw new HttpException('No wallet associated with account', HttpStatus.BAD_REQUEST);
+//     if (!account.wallet) throw new HttpException('No wallet associated with account', HttpStatus.BAD_REQUEST);
 
-    const beneficiary = await this.beneficiaryRepository.findOne({
-      where: { beneficiary_id: payoutDto.beneficiary_id, account_id: account.id },
-    });
-    if (!beneficiary) throw new HttpException('Beneficiary not found', HttpStatus.NOT_FOUND);
-    console.log("2")
-    const currency = payoutDto.currency; // USD, GBP, or EUR
-    const amount = parseFloat(payoutDto.amount.toString());
-    if (isNaN(amount) || amount <= 0) throw new HttpException('Invalid amount', HttpStatus.BAD_REQUEST);
-    console.log("3")
+//     const beneficiary = await this.beneficiaryRepository.findOne({
+//       where: { beneficiary_id: payoutDto.beneficiary_id, account_id: account.id },
+//     });
+//     if (!beneficiary) throw new HttpException('Beneficiary not found', HttpStatus.NOT_FOUND);
+//     console.log("2")
+//     const currency = payoutDto.currency; // USD, GBP, or EUR
+//     const amount = parseFloat(payoutDto.amount.toString());
+//     if (isNaN(amount) || amount <= 0) throw new HttpException('Invalid amount', HttpStatus.BAD_REQUEST);
+//     console.log("3")
 
-    // Fetch exchange rate
-    const exchangeRate = await this.exchangeRateService.getExchangeRate('NGN', currency);
-    const ngnAmount = amount * exchangeRate;
-    const feeCharged = amount * 0.25; // 25% fee as per example
-    const totalNgnAmount = ngnAmount + feeCharged * exchangeRate;
-    console.log("4")
+//     // Fetch exchange rate
+//     const exchangeRate = await this.exchangeRateService.getExchangeRate('NGN', currency);
+//     const ngnAmount = amount * exchangeRate;
+//     const feeCharged = amount * 0.25; // 25% fee as per example
+//     const totalNgnAmount = ngnAmount + feeCharged * exchangeRate;
+//     console.log("4")
 
-    // Check NGN balance
-    const wallet = account.wallet;
-    const ngnBalance = wallet.balances.find(b => b.currency === 'NGN');
-    console.log("5", ngnBalance)
+//     // Check NGN balance
+//     const wallet = account.wallet;
+//     const ngnBalance = wallet.balances.find(b => b.currency === 'NGN');
+//     console.log("5", ngnBalance)
 
-    if (!ngnBalance || ngnBalance.payout_balance < totalNgnAmount) {
-      throw new HttpException('Insufficient NGN balance', HttpStatus.BAD_REQUEST);
-    }
+//     if (!ngnBalance || ngnBalance.payout_balance < totalNgnAmount) {
+//       throw new HttpException('Insufficient NGN balance', HttpStatus.BAD_REQUEST);
+//     }
 
-    // Update NGN balance
-    ngnBalance.payout_balance -= totalNgnAmount;
-    console.log("6")
+//     // Update NGN balance
+//     ngnBalance.payout_balance -= totalNgnAmount;
+//     console.log("6")
 
-    await this.walletRepository.save(wallet);
+//     await this.walletRepository.save(wallet);
 
-    // Update or create target currency balance
-    let targetBalance = wallet.balances.find(b => b.currency === currency);
-    console.log("7")
+//     // Update or create target currency balance
+//     let targetBalance = wallet.balances.find(b => b.currency === currency);
+//     console.log("7")
 
-    if (!targetBalance) {
-      targetBalance = { currency, api_balance: 0, payout_balance: 0, collection_balance: 0 };
-      wallet.balances.push(targetBalance);
-    }
-    targetBalance.payout_balance -= amount + feeCharged;
-    console.log("8")
+//     if (!targetBalance) {
+//       targetBalance = { currency, api_balance: 0, payout_balance: 0, collection_balance: 0 };
+//       wallet.balances.push(targetBalance);
+//     }
+//     targetBalance.payout_balance -= amount + feeCharged;
+//     console.log("8")
 
-    await this.walletRepository.save(wallet);
+//     await this.walletRepository.save(wallet);
 
-    // Create transaction
-    const transactionId = `ex-${crypto.randomUUID()}`;
-    const transaction = this.transactionRepository.create({
-      eventname: `Payout to ${currency}`,
-      transtype: 'debit',
-      total_amount: totalNgnAmount,
-      settled_amount: amount,
-      fee_charged: feeCharged,
-      currency_settled: currency,
-      dated: new Date(),
-      status: 'initiated',
-      initiator: (await this.userRepository.findOne({ where: { id: userId } })).email,
-      type: 'Outflow',
-      transactionid: transactionId,
-      narration: `Payout of ${amount} ${currency} to ${beneficiary.beneficiary_name}`,
-      balance_before: ngnBalance.payout_balance + totalNgnAmount,
-      balance_after: ngnBalance.payout_balance,
-      channel: beneficiary.transfer_type,
-      beneficiary_bank: beneficiary.bank_name,
-      email: (await this.userRepository.findOne({ where: { id: userId } })).email,
-      wallet,
-    });
-    console.log("9")
+//     // Create transaction
+//     const transactionId = `ex-${crypto.randomUUID()}`;
+//     const transaction = this.transactionRepository.create({
+//       eventname: `Payout to ${currency}`,
+//       transtype: 'debit',
+//       total_amount: totalNgnAmount,
+//       settled_amount: amount,
+//       fee_charged: feeCharged,
+//       currency_settled: currency,
+//       dated: new Date(),
+//       status: 'initiated',
+//       initiator: (await this.userRepository.findOne({ where: { id: userId } })).email,
+//       type: 'Outflow',
+//       transactionid: transactionId,
+//       narration: `Payout of ${amount} ${currency} to ${beneficiary.beneficiary_name}`,
+//       balance_before: ngnBalance.payout_balance + totalNgnAmount,
+//       balance_after: ngnBalance.payout_balance,
+//       channel: beneficiary.transfer_type,
+//       beneficiary_bank: beneficiary.bank_name,
+//       email: (await this.userRepository.findOne({ where: { id: userId } })).email,
+//       wallet,
+//     });
+//     console.log("9")
 
 
-    await this.transactionRepository.save(transaction);
-    console.log("10")
+//     await this.transactionRepository.save(transaction);
+//     console.log("10")
 
-    return {
-      status: 200,
-      message: 'Payout queued successfully',
-      transaction_status: 'initiated',
-      meta: {
-        Id: transactionId,
-        debit_currency: 'NGN',
-        amount: amount.toString(),
-        credit_currency: currency,
-        fee_charged: feeCharged,
-        total_amount: amount + feeCharged,
-        dated: transaction.dated.toISOString(),
-        beneficiary_id: beneficiary.beneficiary_id,
-        bank_name: beneficiary.bank_name,
-        account_no: beneficiary.account_no,
-        sort_code: beneficiary.routing,
-      },
-    };
-  } catch (error) {
-    console.error('Initiate payout error:', error);
-      if (error instanceof HttpException) {
-    throw error; }
-    throw new HttpException('Failed to initiate payout', HttpStatus.INTERNAL_SERVER_ERROR);
-  }
-}
+//     return {
+//       status: 200,
+//       message: 'Payout queued successfully',
+//       transaction_status: 'initiated',
+//       meta: {
+//         Id: transactionId,
+//         debit_currency: 'NGN',
+//         amount: amount.toString(),
+//         credit_currency: currency,
+//         fee_charged: feeCharged,
+//         total_amount: amount + feeCharged,
+//         dated: transaction.dated.toISOString(),
+//         beneficiary_id: beneficiary.beneficiary_id,
+//         bank_name: beneficiary.bank_name,
+//         account_no: beneficiary.account_no,
+//         sort_code: beneficiary.routing,
+//       },
+//     };
+//   } catch (error) {
+//     console.error('Initiate payout error:', error);
+//       if (error instanceof HttpException) {
+//     throw error; }
+//     throw new HttpException('Failed to initiate payout', HttpStatus.INTERNAL_SERVER_ERROR);
+//   }
+// }
 
-async initiateUSDPayout2(userId: string, payoutDto: USDPayoutDto) {
-  try {
-    const account = await this.accountRepository.findOne({
-      where: { id: payoutDto.accountId, users: { id: userId } },
-      relations: ['wallet', 'wallet.balances'],
-    });
+// async initiateUSDPayout2(userId: string, payoutDto: USDPayoutDto) {
+//   try {
+//     const account = await this.accountRepository.findOne({
+//       where: { id: payoutDto.accountId, users: { id: userId } },
+//       relations: ['wallet', 'wallet.balances'],
+//     });
 
-    if (!account || !account.wallet) {
-      throw new HttpException('Account or wallet not found', HttpStatus.NOT_FOUND);
-    }
+//     if (!account || !account.wallet) {
+//       throw new HttpException('Account or wallet not found', HttpStatus.NOT_FOUND);
+//     }
 
-    const wallet = account.wallet;
+//     const wallet = account.wallet;
 
-    const balancesByCurrency = {};
-    wallet.balances.forEach(balance => {
-      balancesByCurrency[balance.currency] = balance;
-    });
+//     const balancesByCurrency = {};
+//     wallet.balances.forEach(balance => {
+//       balancesByCurrency[balance.currency] = balance;
+//     });
 
-    const ngnBalance = balancesByCurrency['NGN'];
-    if (!ngnBalance) {
-      throw new HttpException('NGN balance not found', HttpStatus.BAD_REQUEST);
-    }
+//     const ngnBalance = balancesByCurrency['NGN'];
+//     if (!ngnBalance) {
+//       throw new HttpException('NGN balance not found', HttpStatus.BAD_REQUEST);
+//     }
 
-    const currency = payoutDto.currency; // e.g. 'USD'
-    const amount = parseFloat(payoutDto.amount.toString());
-    if (isNaN(amount) || amount <= 0) {
-      throw new HttpException('Invalid amount', HttpStatus.BAD_REQUEST);
-    }
+//     const currency = payoutDto.currency; // e.g. 'USD'
+//     const amount = parseFloat(payoutDto.amount.toString());
+//     if (isNaN(amount) || amount <= 0) {
+//       throw new HttpException('Invalid amount', HttpStatus.BAD_REQUEST);
+//     }
 
-    const exchangeRate = await this.exchangeRateService.getExchangeRate('NGN', currency);
-    const ngnAmount = amount * exchangeRate;
-    const feeCharged = amount * 0.25; // 25% fee
-    const totalNgnAmount = ngnAmount + feeCharged * exchangeRate;
+//     const exchangeRate = await this.exchangeRateService.getExchangeRate('NGN', currency);
+//     const ngnAmount = amount * exchangeRate;
+//     const feeCharged = amount * 0.25; // 25% fee
+//     const totalNgnAmount = ngnAmount + feeCharged * exchangeRate;
 
-    if (ngnBalance.payout_balance < totalNgnAmount) {
-      throw new HttpException('Insufficient NGN balance', HttpStatus.BAD_REQUEST);
-    }
+//     if (ngnBalance.payout_balance < totalNgnAmount) {
+//       throw new HttpException('Insufficient NGN balance', HttpStatus.BAD_REQUEST);
+//     }
 
-    // Deduct NGN
-    const balanceBefore = ngnBalance.payout_balance;
-    ngnBalance.payout_balance -= totalNgnAmount;
-    await this.walletRepository.save(wallet);
+//     // Deduct NGN
+//     const balanceBefore = ngnBalance.payout_balance;
+//     ngnBalance.payout_balance -= totalNgnAmount;
+//     await this.walletRepository.save(wallet);
 
-    // Update target currency balance (e.g. USD)
-    let targetBalance = balancesByCurrency[currency];
-    if (!targetBalance) {
-      targetBalance = {
-        currency,
-        api_balance: 0,
-        collection_balance: 0,
-        payout_balance: 0,
-        wallet,
-      };
-      wallet.balances.push(targetBalance);
-    }
+//     // Update target currency balance (e.g. USD)
+//     let targetBalance = balancesByCurrency[currency];
+//     if (!targetBalance) {
+//       targetBalance = {
+//         currency,
+//         api_balance: 0,
+//         collection_balance: 0,
+//         payout_balance: 0,
+//         wallet,
+//       };
+//       wallet.balances.push(targetBalance);
+//     }
 
-    targetBalance.payout_balance -= amount + feeCharged;
-    await this.walletRepository.save(wallet);
+//     targetBalance.payout_balance -= amount + feeCharged;
+//     await this.walletRepository.save(wallet);
 
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    const beneficiary = await this.beneficiaryRepository.findOne({
-      where: { beneficiary_id: payoutDto.beneficiary_id, account_id: account.id },
-    });
-    if (!beneficiary) {
-      throw new HttpException('Beneficiary not found', HttpStatus.NOT_FOUND);
-    }
+//     const user = await this.userRepository.findOne({ where: { id: userId } });
+//     const beneficiary = await this.beneficiaryRepository.findOne({
+//       where: { beneficiary_id: payoutDto.beneficiary_id, account_id: account.id },
+//     });
+//     if (!beneficiary) {
+//       throw new HttpException('Beneficiary not found', HttpStatus.NOT_FOUND);
+//     }
 
-    const transactionId = `ex-${crypto.randomUUID()}`;
-    const transaction = this.transactionRepository.create({
-      eventname: `Payout to ${currency}`,
-      transtype: 'debit',
-      total_amount: totalNgnAmount,
-      settled_amount: amount,
-      fee_charged: feeCharged,
-      currency_settled: currency,
-      dated: new Date(),
-      status: 'initiated',
-      initiator: user.email,
-      type: 'Outflow',
-      transactionid: transactionId,
-      narration: `Payout of ${amount} ${currency} to ${beneficiary.beneficiary_name}`,
-      balance_before: balanceBefore,
-      balance_after: ngnBalance.payout_balance,
-      channel: beneficiary.transfer_type,
-      beneficiary_bank: beneficiary.bank_name,
-      email: user.email,
-      wallet,
-    });
+//     const transactionId = `ex-${crypto.randomUUID()}`;
+//     const transaction = this.transactionRepository.create({
+//       eventname: `Payout to ${currency}`,
+//       transtype: 'debit',
+//       total_amount: totalNgnAmount,
+//       settled_amount: amount,
+//       fee_charged: feeCharged,
+//       currency_settled: currency,
+//       dated: new Date(),
+//       status: 'initiated',
+//       initiator: user.email,
+//       type: 'Outflow',
+//       transactionid: transactionId,
+//       narration: `Payout of ${amount} ${currency} to ${beneficiary.beneficiary_name}`,
+//       balance_before: balanceBefore,
+//       balance_after: ngnBalance.payout_balance,
+//       channel: beneficiary.transfer_type,
+//       beneficiary_bank: beneficiary.bank_name,
+//       email: user.email,
+//       wallet,
+//     });
 
-    await this.transactionRepository.save(transaction);
+//     await this.transactionRepository.save(transaction);
 
-    return {
-      status: 200,
-      message: 'Payout queued successfully',
-      transaction_status: 'initiated',
-      meta: {
-        Id: transactionId,
-        debit_currency: 'NGN',
-        amount: amount.toString(),
-        credit_currency: currency,
-        fee_charged: feeCharged,
-        total_amount: amount + feeCharged,
-        dated: transaction.dated.toISOString(),
-        beneficiary_id: beneficiary.beneficiary_id,
-        bank_name: beneficiary.bank_name,
-        account_no: beneficiary.account_no,
-        sort_code: beneficiary.routing,
-      },
-    };
-  } catch (error) {
-    console.error('Initiate payout error:', error);
-    if (error instanceof HttpException) throw error;
-    throw new HttpException('Failed to initiate payout', HttpStatus.INTERNAL_SERVER_ERROR);
-  }
-}
+//     return {
+//       status: 200,
+//       message: 'Payout queued successfully',
+//       transaction_status: 'initiated',
+//       meta: {
+//         Id: transactionId,
+//         debit_currency: 'NGN',
+//         amount: amount.toString(),
+//         credit_currency: currency,
+//         fee_charged: feeCharged,
+//         total_amount: amount + feeCharged,
+//         dated: transaction.dated.toISOString(),
+//         beneficiary_id: beneficiary.beneficiary_id,
+//         bank_name: beneficiary.bank_name,
+//         account_no: beneficiary.account_no,
+//         sort_code: beneficiary.routing,
+//       },
+//     };
+//   } catch (error) {
+//     console.error('Initiate payout error:', error);
+//     if (error instanceof HttpException) throw error;
+//     throw new HttpException('Failed to initiate payout', HttpStatus.INTERNAL_SERVER_ERROR);
+//   }
+// }
 
-  async initiateUSDPayout3(userId: string, payoutDto: USDPayoutDto) {
-    try {
-      console.log('1: Fetching account for userId:', userId, 'accountId:', payoutDto.accountId);
-      const account = await this.accountRepository.findOne({
-        where: { id: payoutDto.accountId, users: { id: userId } },
-        relations: ['wallet', 'wallet.transactions'],
-      });
-      if (!account) throw new HttpException('Account not found or unauthorized', HttpStatus.NOT_FOUND);
+//   async initiateUSDPayout3(userId: string, payoutDto: USDPayoutDto) {
+//     try {
+//       console.log('1: Fetching account for userId:', userId, 'accountId:', payoutDto.accountId);
+//       const account = await this.accountRepository.findOne({
+//         where: { id: payoutDto.accountId, users: { id: userId } },
+//         relations: ['wallet', 'wallet.transactions'],
+//       });
+//       if (!account) throw new HttpException('Account not found or unauthorized', HttpStatus.NOT_FOUND);
 
-      if (!account.account_no) {
-        throw new HttpException('Account has no associated account number', HttpStatus.BAD_REQUEST);
-      }
+//       if (!account.account_no) {
+//         throw new HttpException('Account has no associated account number', HttpStatus.BAD_REQUEST);
+//       }
 
-      if (!account.wallet) throw new HttpException('No wallet associated with account', HttpStatus.BAD_REQUEST);
+//       if (!account.wallet) throw new HttpException('No wallet associated with account', HttpStatus.BAD_REQUEST);
 
-      console.log('2: Fetching beneficiary:', payoutDto.beneficiary_id);
-      const beneficiary = await this.beneficiaryRepository.findOne({
-        where: { beneficiary_id: payoutDto.beneficiary_id, account_id: account.id },
-      });
-      if (!beneficiary) throw new HttpException('Beneficiary not found', HttpStatus.NOT_FOUND);
+//       console.log('2: Fetching beneficiary:', payoutDto.beneficiary_id);
+//       const beneficiary = await this.beneficiaryRepository.findOne({
+//         where: { beneficiary_id: payoutDto.beneficiary_id, account_id: account.id },
+//       });
+//       if (!beneficiary) throw new HttpException('Beneficiary not found', HttpStatus.NOT_FOUND);
 
-      const currency = payoutDto.currency;
-      const amount = parseFloat(payoutDto.amount.toString());
-      console.log('3: Parsed amount:', amount, 'currency:', currency);
-      if (isNaN(amount) || amount <= 0) throw new HttpException('Invalid amount', HttpStatus.BAD_REQUEST);
+//       const currency = payoutDto.currency;
+//       const amount = parseFloat(payoutDto.amount.toString());
+//       console.log('3: Parsed amount:', amount, 'currency:', currency);
+//       if (isNaN(amount) || amount <= 0) throw new HttpException('Invalid amount', HttpStatus.BAD_REQUEST);
 
-      console.log('4: Fetching exchange rate for NGN/', currency);
-      const exchangeRate = await this.exchangeRateService.getExchangeRate('NGN', currency);
-      const ngnAmount = amount * exchangeRate;
-      const feeCharged = amount * 0.25;
-      const totalNgnAmount = ngnAmount + feeCharged * exchangeRate;
-      console.log('5: Calculated NGN amount:', ngnAmount, 'fee:', feeCharged, 'total:', totalNgnAmount);
+//       console.log('4: Fetching exchange rate for NGN/', currency);
+//       const exchangeRate = await this.exchangeRateService.getExchangeRate('NGN', currency);
+//       const ngnAmount = amount * exchangeRate;
+//       const feeCharged = amount * 0.25;
+//       const totalNgnAmount = ngnAmount + feeCharged * exchangeRate;
+//       console.log('5: Calculated NGN amount:', ngnAmount, 'fee:', feeCharged, 'total:', totalNgnAmount);
 
-      const wallet = account.wallet;
-      let ngnBalance = wallet.balances.find(b => b.currency === 'NGN');
-      console.log('6: NGN balance:', ngnBalance);
+//       const wallet = account.wallet;
+//       let ngnBalance = wallet.balances.find(b => b.currency === 'NGN');
+//       console.log('6: NGN balance:', ngnBalance);
 
-      if (!ngnBalance) {
-        console.log('7: Initializing NGN balance');
-        ngnBalance = { currency: 'NGN', api_balance: 0, payout_balance: 0, collection_balance: 0 };
-        wallet.balances.push(ngnBalance);
-        await this.walletRepository.save(wallet);
-      }
+//       if (!ngnBalance) {
+//         console.log('7: Initializing NGN balance');
+//         ngnBalance = { currency: 'NGN', api_balance: 0, payout_balance: 0, collection_balance: 0 };
+//         wallet.balances.push(ngnBalance);
+//         await this.walletRepository.save(wallet);
+//       }
 
-      if (ngnBalance.payout_balance < totalNgnAmount) {
-        console.log('8: Insufficient balance - required:', totalNgnAmount, 'available:', ngnBalance.payout_balance);
-        throw new HttpException(
-          `Insufficient NGN balance: need ${totalNgnAmount.toFixed(2)} NGN, have ${ngnBalance.payout_balance.toFixed(2)} NGN`,
-          HttpStatus.BAD_REQUEST
-        );
-      }
+//       if (ngnBalance.payout_balance < totalNgnAmount) {
+//         console.log('8: Insufficient balance - required:', totalNgnAmount, 'available:', ngnBalance.payout_balance);
+//         throw new HttpException(
+//           `Insufficient NGN balance: need ${totalNgnAmount.toFixed(2)} NGN, have ${ngnBalance.payout_balance.toFixed(2)} NGN`,
+//           HttpStatus.BAD_REQUEST
+//         );
+//       }
 
-      console.log('9: Updating NGN balance');
-      ngnBalance.payout_balance -= totalNgnAmount;
-      await this.walletRepository.save(wallet);
+//       console.log('9: Updating NGN balance');
+//       ngnBalance.payout_balance -= totalNgnAmount;
+//       await this.walletRepository.save(wallet);
 
-      console.log('10: Updating target currency balance');
-      let targetBalance = wallet.balances.find(b => b.currency === currency);
-      if (!targetBalance) {
-        targetBalance = { currency, api_balance: 0, payout_balance: 0, collection_balance: 0 };
-        wallet.balances.push(targetBalance);
-      }
-      targetBalance.payout_balance -= amount + feeCharged;
-      await this.walletRepository.save(wallet);
+//       console.log('10: Updating target currency balance');
+//       let targetBalance = wallet.balances.find(b => b.currency === currency);
+//       if (!targetBalance) {
+//         targetBalance = { currency, api_balance: 0, payout_balance: 0, collection_balance: 0 };
+//         wallet.balances.push(targetBalance);
+//       }
+//       targetBalance.payout_balance -= amount + feeCharged;
+//       await this.walletRepository.save(wallet);
 
-      console.log('11: Creating transaction');
-      const transactionId = `ex-${crypto.randomUUID()}`;
-      const user = await this.userRepository.findOne({ where: { id: userId } });
-      const transaction = this.transactionRepository.create({
-        eventname: `Payout to ${currency}`,
-        transtype: 'debit',
-        total_amount: totalNgnAmount,
-        settled_amount: amount,
-        fee_charged: feeCharged,
-        currency_settled: currency,
-        dated: new Date(),
-        status: 'initiated',
-        initiator: user.email,
-        type: 'Outflow',
-        transactionid: transactionId,
-        narration: `Payout of ${amount} ${currency} to ${beneficiary.beneficiary_name}`,
-        balance_before: ngnBalance.payout_balance + totalNgnAmount,
-        balance_after: ngnBalance.payout_balance,
-        channel: beneficiary.transfer_type,
-        beneficiary_bank: beneficiary.bank_name,
-        email: user.email,
-        wallet,
-      });
+//       console.log('11: Creating transaction');
+//       const transactionId = `ex-${crypto.randomUUID()}`;
+//       const user = await this.userRepository.findOne({ where: { id: userId } });
+//       const transaction = this.transactionRepository.create({
+//         eventname: `Payout to ${currency}`,
+//         transtype: 'debit',
+//         total_amount: totalNgnAmount,
+//         settled_amount: amount,
+//         fee_charged: feeCharged,
+//         currency_settled: currency,
+//         dated: new Date(),
+//         status: 'initiated',
+//         initiator: user.email,
+//         type: 'Outflow',
+//         transactionid: transactionId,
+//         narration: `Payout of ${amount} ${currency} to ${beneficiary.beneficiary_name}`,
+//         balance_before: ngnBalance.payout_balance + totalNgnAmount,
+//         balance_after: ngnBalance.payout_balance,
+//         channel: beneficiary.transfer_type,
+//         beneficiary_bank: beneficiary.bank_name,
+//         email: user.email,
+//         wallet,
+//       });
 
-      console.log('12: Saving transaction');
-      await this.transactionRepository.save(transaction);
+//       console.log('12: Saving transaction');
+//       await this.transactionRepository.save(transaction);
 
-      console.log('13: Payout successful');
-      return {
-        status: 200,
-        message: 'Payout queued successfully',
-        transaction_status: 'initiated',
-        meta: {
-          Id: transactionId,
-          debit_currency: 'NGN',
-          amount: amount.toString(),
-          credit_currency: currency,
-          fee_charged: feeCharged,
-          total_amount: amount + feeCharged,
-          dated: transaction.dated.toISOString(),
-          beneficiary_id: beneficiary.beneficiary_id,
-          bank_name: beneficiary.bank_name,
-          account_no: beneficiary.account_no,
-          sort_code: beneficiary.routing,
-        },
-      };
-    } catch (error) {
-      console.error('Initiate payout error:', error);
-      if (error instanceof HttpException) {
-        throw error;
-      }
-      throw new HttpException('Failed to initiate payout', HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }
+//       console.log('13: Payout successful');
+//       return {
+//         status: 200,
+//         message: 'Payout queued successfully',
+//         transaction_status: 'initiated',
+//         meta: {
+//           Id: transactionId,
+//           debit_currency: 'NGN',
+//           amount: amount.toString(),
+//           credit_currency: currency,
+//           fee_charged: feeCharged,
+//           total_amount: amount + feeCharged,
+//           dated: transaction.dated.toISOString(),
+//           beneficiary_id: beneficiary.beneficiary_id,
+//           bank_name: beneficiary.bank_name,
+//           account_no: beneficiary.account_no,
+//           sort_code: beneficiary.routing,
+//         },
+//       };
+//     } catch (error) {
+//       console.error('Initiate payout error:', error);
+//       if (error instanceof HttpException) {
+//         throw error;
+//       }
+//       throw new HttpException('Failed to initiate payout', HttpStatus.INTERNAL_SERVER_ERROR);
+//     }
+//   }
+
+//    async initiateUSDPayout4(userId: string, payoutDto: USDPayoutDto) {
+//     try {
+//       console.log('1: Fetching account for userId:', userId, 'accountId:', payoutDto.accountId);
+//       const account = await this.accountRepository.findOne({
+//         where: { id: payoutDto.accountId, users: { id: userId } },
+//         relations: ['wallet', 'wallet.transactions'],
+//       });
+//       if (!account) throw new HttpException('Account not found or unauthorized', HttpStatus.NOT_FOUND);
+
+//       if (!account.account_no) {
+//         throw new HttpException('Account has no associated account number', HttpStatus.BAD_REQUEST);
+//       }
+
+//       if (!account.wallet) throw new HttpException('No wallet associated with account', HttpStatus.BAD_REQUEST);
+
+//       console.log('2: Fetching beneficiary:', payoutDto.beneficiary_id);
+//       const beneficiary = await this.beneficiaryRepository.findOne({
+//         where: { beneficiary_id: payoutDto.beneficiary_id, account_id: account.id },
+//       });
+//       if (!beneficiary) throw new HttpException('Beneficiary not found', HttpStatus.NOT_FOUND);
+
+//       const currency = payoutDto.currency;
+//       const amount = parseFloat(payoutDto.amount.toString());
+//       console.log('3: Parsed amount:', amount, 'currency:', currency);
+//       if (isNaN(amount) || amount <= 0) throw new HttpException('Invalid amount', HttpStatus.BAD_REQUEST);
+
+//       console.log('4: Fetching exchange rate for NGN/', currency);
+//       const exchangeRate = await this.exchangeRateService.getExchangeRate('NGN', currency);
+//       const ngnAmount = amount * exchangeRate;
+//       const feeCharged = amount * 0.25;
+//       const totalNgnAmount = ngnAmount + feeCharged * exchangeRate;
+//       console.log('5: Calculated NGN amount:', ngnAmount, 'fee:', feeCharged, 'total:', totalNgnAmount);
+
+//       const wallet = account.wallet;
+//       let ngnBalance = wallet.balances.find(b => b.currency === 'NGN');
+//       console.log('6: NGN balance:', ngnBalance);
+
+//       if (!ngnBalance) {
+//         console.log('7: Initializing NGN balance');
+//         ngnBalance = { currency: 'NGN', api_balance: 0, payout_balance: 0, collection_balance: 0 };
+//         wallet.balances.push(ngnBalance);
+//         await this.walletRepository.save(wallet);
+//       }
+
+//       if (ngnBalance.payout_balance < totalNgnAmount) {
+//         console.log('8: Insufficient balance - required:', totalNgnAmount, 'available:', ngnBalance.payout_balance);
+//         throw new HttpException(
+//           `Insufficient NGN balance: need ${totalNgnAmount.toFixed(2)} NGN, have ${ngnBalance.payout_balance.toFixed(2)} NGN`,
+//           HttpStatus.BAD_REQUEST
+//         );
+//       }
+
+//       console.log('9: Updating NGN balance');
+//       ngnBalance.payout_balance -= totalNgnAmount;
+//       await this.walletRepository.save(wallet);
+
+//       console.log('10: Updating target currency balance');
+//       let targetBalance = wallet.balances.find(b => b.currency === currency);
+//       if (!targetBalance) {
+//         targetBalance = { currency, api_balance: 0, payout_balance: 0, collection_balance: 0 };
+//         wallet.balances.push(targetBalance);
+//       }
+//       targetBalance.payout_balance -= amount + feeCharged;
+//       await this.walletRepository.save(wallet);
+
+//       console.log('11: Creating transaction');
+//       const transactionId = `ex-${crypto.randomUUID()}`;
+//       const user = await this.userRepository.findOne({ where: { id: userId } });
+//       const transaction = this.transactionRepository.create({
+//         eventname: `Payout to ${currency}`,
+//         transtype: 'debit',
+//         total_amount: totalNgnAmount,
+//         settled_amount: amount,
+//         fee_charged: feeCharged,
+//         currency_settled: currency,
+//         dated: new Date(),
+//         status: 'initiated',
+//         initiator: user.email,
+//         type: 'Outflow',
+//         transactionid: transactionId,
+//         narration: `Payout of ${amount} ${currency} to ${beneficiary.beneficiary_name}`,
+//         balance_before: ngnBalance.payout_balance + totalNgnAmount,
+//         balance_after: ngnBalance.payout_balance,
+//         channel: beneficiary.transfer_type,
+//         beneficiary_bank: beneficiary.bank_name,
+//         email: user.email,
+//         wallet,
+//       });
+
+//       console.log('12: Saving transaction');
+//       await this.transactionRepository.save(transaction);
+
+//       console.log('13: Payout successful');
+//       return {
+//         status: 200,
+//         message: 'Payout queued successfully',
+//         transaction_status: 'initiated',
+//         meta: {
+//           Id: transactionId,
+//           debit_currency: 'NGN',
+//           amount: amount.toString(),
+//           credit_currency: currency,
+//           fee_charged: feeCharged,
+//           total_amount: amount + feeCharged,
+//           dated: transaction.dated.toISOString(),
+//           beneficiary_id: beneficiary.beneficiary_id,
+//           bank_name: beneficiary.bank_name,
+//           account_no: beneficiary.account_no,
+//           sort_code: beneficiary.routing,
+//         },
+//       };
+//     } catch (error) {
+//       console.error('Initiate payout error:', error);
+//       if (error instanceof HttpException) {
+//         throw error;
+//       }
+//       throw new HttpException('Failed to initiate payout', HttpStatus.INTERNAL_SERVER_ERROR);
+//     }
+//   }
+
+//    async initiateUSDPayout5(userId: string, payoutDto: USDPayoutDto) {
+//     try {
+//       console.log('1: Fetching account for userId:', userId, 'accountId:', payoutDto.accountId);
+//       if (!userId) throw new HttpException('User ID is undefined', HttpStatus.UNAUTHORIZED);
+
+//       const account = await this.accountRepository.findOne({
+//         where: { id: payoutDto.accountId, users: { id: userId } },
+//         relations: ['wallet', 'wallet.transactions'],
+//       });
+//       if (!account) throw new HttpException('Account not found or unauthorized', HttpStatus.NOT_FOUND);
+
+//       if (!account.account_no) {
+//         throw new HttpException('Account has no associated account number', HttpStatus.BAD_REQUEST);
+//       }
+
+//       if (!account.wallet) throw new HttpException('No wallet associated with account', HttpStatus.BAD_REQUEST);
+
+//       console.log('2: Fetching beneficiary:', payoutDto.beneficiary_id);
+//       const beneficiary = await this.beneficiaryRepository.findOne({
+//         where: { beneficiary_id: payoutDto.beneficiary_id, account_id: account.id },
+//       });
+//       if (!beneficiary) throw new HttpException('Beneficiary not found', HttpStatus.NOT_FOUND);
+
+//       const currency = payoutDto.currency;
+//       const amount = parseFloat(payoutDto.amount.toString());
+//       console.log('3: Parsed amount:', amount, 'currency:', currency);
+//       if (isNaN(amount) || amount <= 0) throw new HttpException('Invalid amount', HttpStatus.BAD_REQUEST);
+
+//       console.log('4: Fetching exchange rate for NGN/', currency);
+//       const exchangeRate = await this.exchangeRateService.getExchangeRate('NGN', currency);
+//       const ngnAmount = amount * exchangeRate;
+//       const feeCharged = amount * 0.25;
+//       const totalNgnAmount = ngnAmount + feeCharged * exchangeRate;
+//       console.log('5: Calculated NGN amount:', ngnAmount, 'fee:', feeCharged, 'total:', totalNgnAmount);
+
+//       const wallet = account.wallet;
+//       console.log('6: Wallet ID:', wallet.id, 'Balances:', JSON.stringify(wallet.balances));
+//       const ngnBalance = wallet.balances.find(b => b.currency === 'NGN');
+//       console.log('7: NGN balance:', ngnBalance);
+
+//       // if (!ngnBalance) {
+//       //   console.log('8: Initializing NGN balance');
+//       //   ngnBalance = {
+//       //     currency: 'NGN',
+//       //     api_balance: 0,
+//       //     payout_balance: 5000000, // Initialize like addBusiness
+//       //     collection_balance: 0, // Match addBusiness logic
+//       //   };
+//       //   wallet.balances.push(ngnBalance);
+//       //   await this.walletRepository.save(wallet);
+//       // }
+
+//       if (ngnBalance.payout_balance < totalNgnAmount) {
+//         console.log('9: Insufficient balance - required:', totalNgnAmount, 'available:', ngnBalance.payout_balance);
+//         throw new HttpException(
+//           `Insufficient NGN balance: need ${totalNgnAmount.toFixed(2)} NGN, have ${ngnBalance.payout_balance.toFixed(2)} NGN`,
+//           HttpStatus.BAD_REQUEST
+//         );
+//       }
+
+//       console.log('10: Updating NGN balance');
+//       ngnBalance.payout_balance -= totalNgnAmount;
+//       // collection_balance remains unchanged, as in getbalance logic
+//       await this.walletRepository.save(wallet);
+
+//       console.log('11: Updating target currency balance');
+//       let targetBalance = wallet.balances.find(b => b.currency === currency);
+//       if (!targetBalance) {
+//         targetBalance = { currency, api_balance: 0, payout_balance: 0, collection_balance: 0 };
+//         wallet.balances.push(targetBalance);
+//       }
+//       targetBalance.payout_balance -= amount + feeCharged;
+//       // collection_balance for target currency unchanged
+//       await this.walletRepository.save(wallet);
+
+//       console.log('12: Creating transaction');
+//       const transactionId = `ex-${crypto.randomUUID()}`;
+//       const user = await this.userRepository.findOne({ where: { id: userId } });
+//       const transaction = this.transactionRepository.create({
+//         eventname: `Payout to ${currency}`,
+//         transtype: 'debit',
+//         total_amount: totalNgnAmount,
+//         settled_amount: amount,
+//         fee_charged: feeCharged,
+//         currency_settled: currency,
+//         dated: new Date(),
+//         status: 'initiated',
+//         initiator: user.email,
+//         type: 'Outflow',
+//         transactionid: transactionId,
+//         narration: `Payout of ${amount} ${currency} to ${beneficiary.beneficiary_name}`,
+//         balance_before: ngnBalance.payout_balance + totalNgnAmount,
+//         balance_after: ngnBalance.payout_balance,
+//         channel: beneficiary.transfer_type,
+//         beneficiary_bank: beneficiary.bank_name,
+//         email: user.email,
+//         wallet,
+//       });
+
+//       console.log('13: Saving transaction');
+//       await this.transactionRepository.save(transaction);
+
+//       console.log('14: Payout successful');
+//       return {
+//         status: 200,
+//         message: 'Payout queued successfully',
+//         transaction_status: 'initiated',
+//         meta: {
+//           Id: transactionId,
+//           debit_currency: 'NGN',
+//           amount: amount.toString(),
+//           credit_currency: currency,
+//           fee_charged: feeCharged,
+//           total_amount: amount + feeCharged,
+//           dated: transaction.dated.toISOString(),
+//           beneficiary_id: beneficiary.beneficiary_id,
+//           bank_name: beneficiary.bank_name,
+//           account_no: beneficiary.account_no,
+//           sort_code: beneficiary.routing,
+//         },
+//       };
+//     } catch (error) {
+//       console.error('Initiate payout error:', error);
+//       if (error instanceof HttpException) {
+//         throw error;
+//       }
+//       throw new HttpException('Failed to initiate payout', HttpStatus.INTERNAL_SERVER_ERROR);
+//     }
+//   }
 
    async initiateUSDPayout(userId: string, payoutDto: USDPayoutDto) {
     try {
       console.log('1: Fetching account for userId:', userId, 'accountId:', payoutDto.accountId);
+      if (!userId) throw new HttpException('User ID is undefined', HttpStatus.UNAUTHORIZED);
+
       const account = await this.accountRepository.findOne({
         where: { id: payoutDto.accountId, users: { id: userId } },
         relations: ['wallet', 'wallet.transactions'],
@@ -2622,57 +3174,51 @@ async initiateUSDPayout2(userId: string, payoutDto: USDPayoutDto) {
       });
       if (!beneficiary) throw new HttpException('Beneficiary not found', HttpStatus.NOT_FOUND);
 
-      const currency = payoutDto.currency;
+      const currency = payoutDto.debit_currency || payoutDto.currency;
       const amount = parseFloat(payoutDto.amount.toString());
       console.log('3: Parsed amount:', amount, 'currency:', currency);
       if (isNaN(amount) || amount <= 0) throw new HttpException('Invalid amount', HttpStatus.BAD_REQUEST);
 
-      console.log('4: Fetching exchange rate for NGN/', currency);
-      const exchangeRate = await this.exchangeRateService.getExchangeRate('NGN', currency);
-      const ngnAmount = amount * exchangeRate;
       const feeCharged = amount * 0.25;
-      const totalNgnAmount = ngnAmount + feeCharged * exchangeRate;
-      console.log('5: Calculated NGN amount:', ngnAmount, 'fee:', feeCharged, 'total:', totalNgnAmount);
+      const totalAmount = amount + feeCharged;
+      console.log('4: Calculated fee:', feeCharged, 'total:', totalAmount);
 
       const wallet = account.wallet;
-      let ngnBalance = wallet.balances.find(b => b.currency === 'NGN');
-      console.log('6: NGN balance:', ngnBalance);
+      console.log('5: Wallet ID:', wallet.id, 'Balances:', JSON.stringify(wallet.balances));
+      let targetBalance = wallet.balances.find(b => b.currency === currency);
+      console.log('6: Target balance:', targetBalance);
 
-      if (!ngnBalance) {
-        console.log('7: Initializing NGN balance');
-        ngnBalance = { currency: 'NGN', api_balance: 0, payout_balance: 0, collection_balance: 0 };
-        wallet.balances.push(ngnBalance);
+      if (!targetBalance) {
+        console.log('7: Initializing balance for', currency);
+        targetBalance = {
+          currency,
+          api_balance: 0,
+          payout_balance: 0,
+          collection_balance: 0,
+        };
+        wallet.balances.push(targetBalance);
         await this.walletRepository.save(wallet);
       }
 
-      if (ngnBalance.payout_balance < totalNgnAmount) {
-        console.log('8: Insufficient balance - required:', totalNgnAmount, 'available:', ngnBalance.payout_balance);
+      if (targetBalance.payout_balance < totalAmount) {
+        console.log('8: Insufficient balance - required:', totalAmount, 'available:', targetBalance.payout_balance);
         throw new HttpException(
-          `Insufficient NGN balance: need ${totalNgnAmount.toFixed(2)} NGN, have ${ngnBalance.payout_balance.toFixed(2)} NGN`,
+          `Insufficient ${currency} balance: need ${totalAmount.toFixed(2)} ${currency}, have ${targetBalance.payout_balance.toFixed(2)} ${currency}`,
           HttpStatus.BAD_REQUEST
         );
       }
 
-      console.log('9: Updating NGN balance');
-      ngnBalance.payout_balance -= totalNgnAmount;
+      console.log('9: Updating target currency balance');
+      targetBalance.payout_balance -= totalAmount;
       await this.walletRepository.save(wallet);
 
-      console.log('10: Updating target currency balance');
-      let targetBalance = wallet.balances.find(b => b.currency === currency);
-      if (!targetBalance) {
-        targetBalance = { currency, api_balance: 0, payout_balance: 0, collection_balance: 0 };
-        wallet.balances.push(targetBalance);
-      }
-      targetBalance.payout_balance -= amount + feeCharged;
-      await this.walletRepository.save(wallet);
-
-      console.log('11: Creating transaction');
-      const transactionId = `ex-${crypto.randomUUID()}`;
+      console.log('10: Creating transaction');
+      const transactionId = payoutDto.transactionId || `FR${crypto.randomBytes(5).toString('base64url')}`;
       const user = await this.userRepository.findOne({ where: { id: userId } });
       const transaction = this.transactionRepository.create({
         eventname: `Payout to ${currency}`,
         transtype: 'debit',
-        total_amount: totalNgnAmount,
+        total_amount: totalAmount,
         settled_amount: amount,
         fee_charged: feeCharged,
         currency_settled: currency,
@@ -2681,30 +3227,30 @@ async initiateUSDPayout2(userId: string, payoutDto: USDPayoutDto) {
         initiator: user.email,
         type: 'Outflow',
         transactionid: transactionId,
-        narration: `Payout of ${amount} ${currency} to ${beneficiary.beneficiary_name}`,
-        balance_before: ngnBalance.payout_balance + totalNgnAmount,
-        balance_after: ngnBalance.payout_balance,
+        narration: payoutDto.narration || `Payout of ${amount} ${currency} to ${beneficiary.beneficiary_name}`,
+        balance_before: targetBalance.payout_balance + totalAmount,
+        balance_after: targetBalance.payout_balance,
         channel: beneficiary.transfer_type,
         beneficiary_bank: beneficiary.bank_name,
         email: user.email,
         wallet,
       });
 
-      console.log('12: Saving transaction');
+      console.log('11: Saving transaction');
       await this.transactionRepository.save(transaction);
 
-      console.log('13: Payout successful');
+      console.log('12: Payout successful');
       return {
         status: 200,
         message: 'Payout queued successfully',
         transaction_status: 'initiated',
         meta: {
           Id: transactionId,
-          debit_currency: 'NGN',
+          debit_currency: currency,
           amount: amount.toString(),
           credit_currency: currency,
           fee_charged: feeCharged,
-          total_amount: amount + feeCharged,
+          total_amount: totalAmount,
           dated: transaction.dated.toISOString(),
           beneficiary_id: beneficiary.beneficiary_id,
           bank_name: beneficiary.bank_name,
@@ -2720,6 +3266,447 @@ async initiateUSDPayout2(userId: string, payoutDto: USDPayoutDto) {
       throw new HttpException('Failed to initiate payout', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+
+    async convertAndFund1(userId: string, convertAndFundDto: ConvertAndFundDto) {
+    try {
+      console.log('1: Converting and funding for userId:', userId, 'DTO:', convertAndFundDto);
+      if (!userId) throw new HttpException('User ID is undefined', HttpStatus.UNAUTHORIZED);
+
+      const account = await this.accountRepository.findOne({
+        where: { id: convertAndFundDto.accountId, users: { id: userId } },
+        relations: ['wallet', 'wallet.transactions'],
+      });
+      if (!account || !account.wallet) throw new HttpException('Account or wallet not found', HttpStatus.NOT_FOUND);
+
+      const wallet = account.wallet;
+      const targetCurrency = convertAndFundDto.targetCurrency;
+      const ngnAmount = parseFloat(convertAndFundDto.amount.toString());
+      console.log('2: Parsed NGN amount:', ngnAmount, 'target currency:', targetCurrency);
+      if (isNaN(ngnAmount) || ngnAmount <= 0) throw new HttpException('Invalid amount', HttpStatus.BAD_REQUEST);
+
+      console.log('3: Fetching exchange rate for NGN to', targetCurrency);
+      const exchangeRate = await this.exchangeRateService.getExchangeRate('NGN', targetCurrency);
+      const targetAmount = ngnAmount / exchangeRate;
+      const feeCharged = targetAmount * 0.0025; // 0.25% fee
+      const amountPayable = targetAmount - feeCharged;
+      const totalNgnAmount = ngnAmount + (feeCharged * exchangeRate);
+      console.log('4: Calculated target amount:', targetAmount, 'fee:', feeCharged, 'amountPayable:', amountPayable, 'total NGN:', totalNgnAmount);
+
+      let ngnBalance = wallet.balances.find(b => b.currency === 'NGN');
+      if (!ngnBalance) {
+        console.log('5: Initializing NGN balance');
+        ngnBalance = {
+          currency: 'NGN',
+          api_balance: 0,
+          payout_balance: 5000000,
+          collection_balance: 121301,
+        };
+        wallet.balances.push(ngnBalance);
+        await this.walletRepository.save(wallet);
+      }
+
+      if (ngnBalance.payout_balance < totalNgnAmount) {
+        console.log('6: Insufficient NGN balance - required:', totalNgnAmount, 'available:', ngnBalance.payout_balance);
+        throw new HttpException(
+          `Insufficient NGN balance: need ${totalNgnAmount.toFixed(2)} NGN, have ${ngnBalance.payout_balance.toFixed(2)} NGN`,
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      console.log('7: Updating NGN balance');
+      ngnBalance.payout_balance -= totalNgnAmount;
+      await this.walletRepository.save(wallet);
+
+      console.log('8: Updating target currency balance');
+      let targetBalance = wallet.balances.find(b => b.currency === targetCurrency);
+      if (!targetBalance) {
+        targetBalance = { currency: targetCurrency, api_balance: 0, payout_balance: 0, collection_balance: 0 };
+        wallet.balances.push(targetBalance);
+      }
+      targetBalance.payout_balance += amountPayable;
+      targetBalance.collection_balance += amountPayable;
+      await this.walletRepository.save(wallet);
+
+      console.log('9: Creating conversion and funding transaction');
+      const transactionId = `Flick-${crypto.randomUUID()}`;
+      const user = await this.userRepository.findOne({ where: { id: userId } });
+      const transaction = this.transactionRepository.create({
+        eventname: `Conversion and Funding ${targetCurrency}`,
+        transtype: 'credit',
+        total_amount: targetAmount,
+        settled_amount: amountPayable,
+        fee_charged: feeCharged,
+        currency_settled: targetCurrency,
+        dated: new Date(),
+        status: 'initiated',
+        initiator: user.email,
+        type: 'Inflow',
+        transactionid: transactionId,
+        narration: `Conversion of ${ngnAmount} NGN to ${amountPayable} ${targetCurrency}`,
+        balance_before: targetBalance.payout_balance - amountPayable,
+        balance_after: targetBalance.payout_balance,
+        channel: 'internal',
+        email: user.email,
+        wallet,
+      });
+
+      console.log('10: Saving transaction');
+      await this.transactionRepository.save(transaction);
+
+      console.log('11: Conversion and funding successful');
+      return {
+        statusCode: 200,
+        status: 'success',
+        message: 'Conversion and funding transaction created successfully',
+        data: {
+          transactionId,
+          currency: targetCurrency,
+          currency_collected: 'NGN',
+          nairaEquivalent: ngnAmount,
+          amount: targetAmount,
+          charges: feeCharged,
+          amountPayable,
+          payableFxAmountString: `${targetCurrency === 'USD' ? '$' : targetCurrency === 'GBP' ? '£' : targetCurrency === 'CAD' ? 'C$' : '€'}${amountPayable.toFixed(2)}`,
+          payableAmountString: `${targetCurrency === 'USD' ? '$' : targetCurrency === 'GBP' ? '£' : targetCurrency === 'CAD' ? 'C$' : '€'}${amountPayable.toFixed(2)}`,
+          rate: exchangeRate,
+          currency_settled: targetCurrency,
+        },
+      };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+
+      console.error('Convert and fund error:', error);
+      throw new HttpException(
+        error.message || 'Failed to convert and fund wallet',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+   async convertAndFund2(userId: string, convertAndFundDto: ConvertAndFundDto) {
+    try {
+      console.log('1: Converting and funding for userId:', userId, 'DTO:', convertAndFundDto);
+      if (!userId) {
+        console.error('User ID is undefined - Possible JWT issue');
+        throw new HttpException('User ID is undefined', HttpStatus.UNAUTHORIZED);
+      }
+
+      const user = await this.userRepository.findOne({ where: { id: userId } });
+      if (!user) {
+        console.error('User not found for ID:', userId);
+        throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+      }
+
+      const account = await this.accountRepository.findOne({
+        where: { id: convertAndFundDto.accountId, users: { id: userId } },
+        relations: ['wallet'],
+      });
+      if (!account || !account.wallet) {
+        console.error('Account or wallet not found for accountId:', convertAndFundDto.accountId);
+        throw new HttpException('Account or wallet not found', HttpStatus.NOT_FOUND);
+      }
+
+      const wallet = account.wallet;
+      console.log('2: Wallet ID:', wallet.id, 'Balances:', JSON.stringify(wallet.balances));
+      const targetCurrency = convertAndFundDto.targetCurrency;
+      const ngnAmount = parseFloat(convertAndFundDto.amount.toString());
+      console.log('3: Parsed NGN amount:', ngnAmount, 'target currency:', targetCurrency);
+      if (isNaN(ngnAmount) || ngnAmount <= 0) throw new HttpException('Invalid amount', HttpStatus.BAD_REQUEST);
+
+      console.log('4: Fetching exchange rate for NGN to', targetCurrency);
+      const exchangeRate = await this.exchangeRateService.getExchangeRate('NGN', targetCurrency);
+      if (!exchangeRate) {
+        console.error('Exchange rate not available for NGN to', targetCurrency);
+        throw new HttpException('Exchange rate not available', HttpStatus.BAD_REQUEST);
+      }
+
+      const targetAmount = ngnAmount / exchangeRate;
+      const feeCharged = targetAmount * 0.0025; // 0.25% fee
+      const amountPayable = targetAmount - feeCharged;
+      const totalNgnAmount = ngnAmount + (feeCharged * exchangeRate);
+      console.log('5: Calculated target amount:', targetAmount, 'fee:', feeCharged, 'amountPayable:', amountPayable, 'total NGN:', totalNgnAmount);
+
+      let ngnBalance = wallet.balances.find(b => b.currency === 'NGN');
+      if (!ngnBalance) {
+        console.log('6: No NGN balance found, initializing');
+        ngnBalance = {
+          currency: 'NGN',
+          api_balance: 0,
+          payout_balance: 0,
+          collection_balance: 0,
+        };
+        wallet.balances.push(ngnBalance);
+        await this.walletRepository.save(wallet);
+      }
+
+      console.log('7: NGN balance check - required:', totalNgnAmount, 'available:', ngnBalance.payout_balance);
+      if (ngnBalance.payout_balance < totalNgnAmount) {
+        console.error('8: Insufficient NGN balance - required:', totalNgnAmount, 'available:', ngnBalance.payout_balance);
+        throw new HttpException(
+          `Insufficient NGN balance: need ${totalNgnAmount.toFixed(2)} NGN, have ${ngnBalance.payout_balance.toFixed(2)} NGN`,
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      console.log('9: Updating NGN balance');
+      ngnBalance.payout_balance -= totalNgnAmount;
+      await this.walletRepository.save(wallet);
+
+      console.log('10: Updating target currency balance');
+      let targetBalance = wallet.balances.find(b => b.currency === targetCurrency);
+      if (!targetBalance) {
+        console.log('11: Initializing target currency balance for', targetCurrency);
+        targetBalance = { currency: targetCurrency, api_balance: 0, payout_balance: 0, collection_balance: 0 };
+        wallet.balances.push(targetBalance);
+      }
+      targetBalance.payout_balance += amountPayable;
+      targetBalance.collection_balance += amountPayable;
+      await this.walletRepository.save(wallet);
+
+      console.log('12: Creating NGN outflow transaction');
+      const ngnTransactionId = `Flick-${crypto.randomUUID()}`;
+      const ngnTransaction = this.transactionRepository.create({
+        eventname: `Conversion from NGN to ${targetCurrency}`,
+        transtype: 'debit',
+        total_amount: totalNgnAmount,
+        settled_amount: ngnAmount,
+        fee_charged: feeCharged * exchangeRate,
+        currency_settled: 'NGN',
+        dated: new Date(),
+        status: 'initiated',
+        initiator: user.email,
+        type: 'Outflow',
+        transactionid: ngnTransactionId,
+        narration: `Conversion of ${ngnAmount} NGN to ${amountPayable} ${targetCurrency}`,
+        balance_before: ngnBalance.payout_balance + totalNgnAmount,
+        balance_after: ngnBalance.payout_balance,
+        channel: 'internal',
+        email: user.email,
+        wallet,
+      });
+      console.log('13: Saving NGN outflow transaction');
+      await this.transactionRepository.save(ngnTransaction);
+
+      console.log('14: Creating target currency inflow transaction');
+      const targetTransactionId = `Flick-${crypto.randomUUID()}`;
+      const targetTransaction = this.transactionRepository.create({
+        eventname: `Conversion to ${targetCurrency} from NGN`,
+        transtype: 'credit',
+        total_amount: targetAmount,
+        settled_amount: amountPayable,
+        fee_charged: feeCharged,
+        currency_settled: targetCurrency,
+        dated: new Date(),
+        status: 'initiated',
+        initiator: user.email,
+        type: 'Inflow',
+        transactionid: targetTransactionId,
+        narration: `Conversion of ${ngnAmount} NGN to ${amountPayable} ${targetCurrency}`,
+        balance_before: targetBalance.payout_balance - amountPayable,
+        balance_after: targetBalance.payout_balance,
+        channel: 'internal',
+        email: user.email,
+        wallet,
+      });
+
+      console.log('15: Saving target currency inflow transaction');
+      await this.transactionRepository.save(targetTransaction);
+
+      console.log('16: Conversion and funding successful');
+      return {
+        statusCode: 200,
+        status: 'success',
+        message: 'Conversion and funding transaction created successfully',
+        data: {
+          ngnTransactionId,
+          targetTransactionId,
+          currency: targetCurrency,
+          currency_collected: 'NGN',
+          nairaEquivalent: ngnAmount,
+          amount: targetAmount,
+          charges: feeCharged,
+          amountPayable,
+          payableFxAmountString: `${targetCurrency === 'USD' ? '$' : targetCurrency === 'GBP' ? '£' : targetCurrency === 'CAD' ? 'C$' : '€'}${amountPayable.toFixed(2)}`,
+          payableAmountString: `${targetCurrency === 'USD' ? '$' : targetCurrency === 'GBP' ? '£' : targetCurrency === 'CAD' ? 'C$' : '€'}${amountPayable.toFixed(2)}`,
+          rate: exchangeRate,
+          currency_settled: targetCurrency,
+        },
+      };
+    } catch (error) {
+      console.error('Convert and fund error:', error);
+      throw new HttpException(
+        error.message || 'Failed to convert and fund wallet',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+    async convertAndFund(userId: string, convertAndFundDto: ConvertAndFundDto) {
+      try {
+        console.log('1: Converting and funding for userId:', userId, 'DTO:', convertAndFundDto);
+        if (!userId) {
+          console.error('User ID is undefined - Possible JWT issue');
+          throw new HttpException('User ID is undefined', HttpStatus.UNAUTHORIZED);
+        }
+  
+        const user = await this.userRepository.findOne({ where: { id: userId } });
+        if (!user) {
+          console.error('User not found for ID:', userId);
+          throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+        }
+  
+        const account = await this.accountRepository.findOne({
+          where: { id: convertAndFundDto.accountId, users: { id: userId } },
+          relations: ['wallet'],
+        });
+        if (!account || !account.wallet) {
+          console.error('Account or wallet not found for accountId:', convertAndFundDto.accountId);
+          throw new HttpException('Account or wallet not found', HttpStatus.NOT_FOUND);
+        }
+  
+        const wallet = account.wallet;
+        console.log('2: Wallet ID:', wallet.id, 'Balances:', JSON.stringify(wallet.balances));
+        const { sourceCurrency, targetCurrency, amount } = convertAndFundDto;
+  
+        if (sourceCurrency === targetCurrency) {
+          console.error('Source and target currencies cannot be the same');
+          throw new HttpException('Source and target currencies cannot be the same', HttpStatus.BAD_REQUEST);
+        }
+  
+        const sourceAmount = parseFloat(amount.toString());
+        console.log('3: Parsed source amount:', sourceAmount, 'source currency:', sourceCurrency, 'target currency:', targetCurrency);
+        if (isNaN(sourceAmount) || sourceAmount <= 0) throw new HttpException('Invalid amount', HttpStatus.BAD_REQUEST);
+  
+        console.log('4: Fetching exchange rate for', sourceCurrency, 'to', targetCurrency);
+        const exchangeRate = await this.exchangeRateService.getExchangeRate(sourceCurrency, targetCurrency);
+        if (!exchangeRate) {
+          console.error('Exchange rate not available for', sourceCurrency, 'to', targetCurrency);
+          throw new HttpException('Exchange rate not available', HttpStatus.BAD_REQUEST);
+        }
+  
+        const targetAmount = sourceAmount / exchangeRate;
+        const feeCharged = targetAmount * 0.0025; // 0.25% fee in target currency
+        const amountPayable = targetAmount - feeCharged;
+        const totalSourceAmount = sourceAmount + (feeCharged * exchangeRate);
+        console.log('5: Calculated target amount:', targetAmount, 'fee:', feeCharged, 'amountPayable:', amountPayable, 'total source amount:', totalSourceAmount);
+  
+        let sourceBalance = wallet.balances.find(b => b.currency === sourceCurrency);
+        if (!sourceBalance) {
+          console.log('6: No', sourceCurrency, 'balance found, initializing');
+          sourceBalance = {
+            currency: sourceCurrency,
+            api_balance: 0,
+            payout_balance: 0,
+            collection_balance: 0,
+          };
+          wallet.balances.push(sourceBalance);
+          await this.walletRepository.save(wallet);
+        }
+  
+        console.log('7:', sourceCurrency, 'balance check - required:', totalSourceAmount, 'available:', sourceBalance.payout_balance);
+        if (sourceBalance.payout_balance < totalSourceAmount) {
+          console.error('8: Insufficient', sourceCurrency, 'balance - required:', totalSourceAmount, 'available:', sourceBalance.payout_balance);
+          throw new HttpException(
+            `Insufficient ${sourceCurrency} balance: need ${totalSourceAmount.toFixed(2)} ${sourceCurrency}, have ${sourceBalance.payout_balance.toFixed(2)} ${sourceCurrency}`,
+            HttpStatus.BAD_REQUEST
+          );
+        }
+  
+        console.log('9: Updating', sourceCurrency, 'balance');
+        sourceBalance.payout_balance -= totalSourceAmount;
+        await this.walletRepository.save(wallet);
+  
+        console.log('10: Updating target currency balance');
+        let targetBalance = wallet.balances.find(b => b.currency === targetCurrency);
+        if (!targetBalance) {
+          console.log('11: Initializing target currency balance for', targetCurrency);
+          targetBalance = { currency: targetCurrency, api_balance: 0, payout_balance: 0, collection_balance: 0 };
+          wallet.balances.push(targetBalance);
+        }
+        targetBalance.payout_balance += amountPayable;
+        targetBalance.collection_balance += amountPayable;
+        await this.walletRepository.save(wallet);
+  
+        console.log('12: Creating', sourceCurrency, 'outflow transaction');
+        const sourceTransactionId = `Flick-${crypto.randomUUID()}`;
+        const sourceTransaction = this.transactionRepository.create({
+          eventname: `Conversion from ${sourceCurrency} to ${targetCurrency}`,
+          transtype: 'debit',
+          total_amount: totalSourceAmount,
+          settled_amount: sourceAmount,
+          fee_charged: feeCharged * exchangeRate,
+          currency_settled: sourceCurrency,
+          dated: new Date(),
+          status: 'initiated',
+          initiator: user.email,
+          type: 'Outflow',
+          transactionid: sourceTransactionId,
+          narration: `Conversion of ${sourceAmount} ${sourceCurrency} to ${amountPayable} ${targetCurrency}`,
+          balance_before: sourceBalance.payout_balance + totalSourceAmount,
+          balance_after: sourceBalance.payout_balance,
+          channel: 'internal',
+          email: user.email,
+          wallet,
+        });
+        console.log('13: Saving', sourceCurrency, 'outflow transaction');
+        await this.transactionRepository.save(sourceTransaction);
+  
+        console.log('14: Creating', targetCurrency, 'inflow transaction');
+        const targetTransactionId = `Flick-${crypto.randomUUID()}`;
+        const targetTransaction = this.transactionRepository.create({
+          eventname: `Conversion to ${targetCurrency} from ${sourceCurrency}`,
+          transtype: 'credit',
+          total_amount: targetAmount,
+          settled_amount: amountPayable,
+          fee_charged: feeCharged,
+          currency_settled: targetCurrency,
+          dated: new Date(),
+          status: 'initiated',
+          initiator: user.email,
+          type: 'Inflow',
+          transactionid: targetTransactionId,
+          narration: `Conversion of ${sourceAmount} ${sourceCurrency} to ${amountPayable} ${targetCurrency}`,
+          balance_before: targetBalance.payout_balance - amountPayable,
+          balance_after: targetBalance.payout_balance,
+          channel: 'internal',
+          email: user.email,
+          wallet,
+        });
+  
+        console.log('15: Saving', targetCurrency, 'inflow transaction');
+        await this.transactionRepository.save(targetTransaction);
+  
+        console.log('16: Conversion and funding successful');
+        return {
+          statusCode: 200,
+          status: 'success',
+          message: 'Conversion and funding transaction created successfully',
+          data: {
+            sourceTransactionId,
+            targetTransactionId,
+            currency: targetCurrency,
+            currency_collected: sourceCurrency,
+            sourceAmount,
+            amount: targetAmount,
+            charges: feeCharged,
+            amountPayable,
+            payableFxAmountString: `${targetCurrency === 'USD' ? '$' : targetCurrency === 'GBP' ? '£' : targetCurrency === 'CAD' ? 'C$' : '€'}${amountPayable.toFixed(2)}`,
+            payableAmountString: `${targetCurrency === 'USD' ? '$' : targetCurrency === 'GBP' ? '£' : targetCurrency === 'CAD' ? 'C$' : '€'}${amountPayable.toFixed(2)}`,
+            rate: exchangeRate,
+            currency_settled: targetCurrency,
+          },
+        };
+      } catch (error) {
+        console.error('Convert and fund error:', error);
+          if (error instanceof HttpException) {
+    throw error; 
+  }
+        throw new HttpException(
+          error.message || 'Failed to convert and fund wallet',
+          error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+    }
   async getCountries() {
   try {
     const countries = await this.countryRepository.findAll();

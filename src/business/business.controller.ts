@@ -14,7 +14,7 @@ import {
 import { AuthService } from '../auth/auth';
 import { BankService } from '../infrastructure/services/banks/bank.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { AddBusinessDto, CreateChargeDto, FundPayoutBalanceDto, NGNCompletePayoutDto, NGNPayoutDto, NubanCreateMerchantDto, SaveBeneficiaryDto, USDPayoutDto } from '../application/dtos/auth.dto';
+import { AddBusinessDto, ConvertAndFundDto, CreateChargeDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanCreateMerchantDto, SaveBeneficiaryDto, USDPayoutDto } from '../application/dtos/auth.dto';
 import { BusinessService } from './business';
 
 
@@ -143,6 +143,21 @@ async getBeneficiaries(@Request() req, @Body('accountId') accountId: string) {
   // async createPaymentLink(@Request() req, @Body() createPaymentLinkDto: CreatePaymentLinkDto) {
   //   return this.authService.createPaymentLink(req.user.sub, createPaymentLinkDto);
   // }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('fund-wallet')
+  async fundWallet(@Request() req, @Body() fundWalletDto: FundWalletDto) {
+    return this.businessService.fundWallet(req.user.sub, fundWalletDto);
+  }
+
+
+  @UseGuards(JwtAuthGuard)
+  @Post('convert-fund')
+  async convertAndFund(@Request() req, @Body() convertAndFundDto: ConvertAndFundDto) {
+    return this.businessService.convertAndFund(req.user.sub, convertAndFundDto);
+  }
+
+  
 
 }
 

@@ -7,6 +7,7 @@ export class ExchangeRateService {
     USD: 1573.2,
     GBP: 2000,
     EUR: 1700,
+    CAD: 1500
   };
 
   async getExchangeRate(fromCurrency: string, toCurrency: string): Promise<number> {

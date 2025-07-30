@@ -188,6 +188,7 @@ console.log(user)
 
     const payload = { sub: user.id, email: user.email };
     const jwt = this.jwtService.sign(payload);
+    console.log(jwt)
     const token = this.tokenEncryptionUtil.encryptToken(jwt);
 
     return { message: 'Login successful', token, accounts: user.accounts };
