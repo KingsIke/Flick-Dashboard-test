@@ -24,3 +24,29 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
   migrationsRun: true,
 };
 
+
+
+// import { Client } from 'pg';
+
+// const client = new Client({
+//   user: 'postgres',
+//   host: 'localhost',
+//   password: '453622Ike',
+//   port: 5432,
+//   database: 'postgres', // NOT flickTest!
+// });
+
+// (async () => {
+//   await client.connect();
+
+//   await client.query(`
+//     SELECT pg_terminate_backend(pid)
+//     FROM pg_stat_activity
+//     WHERE datname = 'flickTest'
+//       AND pid <> pg_backend_pid()
+//   `);
+
+//   await client.query(`DROP DATABASE IF EXISTS "flickTest"`);
+
+//   await client.end();
+// })();

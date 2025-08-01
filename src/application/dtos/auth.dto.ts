@@ -152,9 +152,9 @@ currencies: string[];
   country: string;
 
 
-@IsEnum(SUPPORTED_CURRENCIES, { each: true, message: 'Invalid currency' })
-  @IsNotEmpty()
-  currency: Currency;
+// @IsEnum(SUPPORTED_CURRENCIES, { each: true, message: 'Invalid currency' })
+//   @IsNotEmpty()
+//   currency: Currency;
 
   @IsString()
   @IsNotEmpty()
@@ -458,10 +458,10 @@ export class USDPayoutDto {
   @IsNotEmpty()
   beneficiary_id: string;
 
-  @IsString()
-  @IsNotEmpty()
-  @IsEnum(['USD', 'GBP', 'CAD', 'EUR'], { message: 'Currency must be USD, EUR, CAD, GBP' })
-  currency: string;
+  // @IsString()
+  // @IsNotEmpty()
+  // @IsEnum(['USD', 'GBP', 'CAD', 'EUR'], { message: 'Currency must be USD, EUR, CAD, GBP' })
+  // currency: string;
 
   // @IsString()
   // @IsNotEmpty()

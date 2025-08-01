@@ -35,11 +35,18 @@ export class BusinessController {
     return await this.businessService.addBusiness(req.user.sub, addBusinessDto);
   }
 
-  @Get('balances')
+  // @Get('balances')
+  // @UseGuards(JwtAuthGuard)
+  // @HttpCode(HttpStatus.OK)
+  // async getBalances(@Request() req) {
+  //   return await this.businessService.getBalances(req.user.sub);
+  // }
+
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @Get('balances')
   async getBalances(@Request() req) {
-    return await this.businessService.getBalances(req.user.sub);
+    return await this.businessService.getBalances(req.user.sub, req.query.accountId);
   }
 
   @Get('transactions/:accountId')
