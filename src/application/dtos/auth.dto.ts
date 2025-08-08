@@ -197,47 +197,6 @@ currencies: string[];
   isDomiciliary?: boolean;
 }
 
-// export class AddBusinessDto {
-//   @IsNumber()
-//   @IsNotEmpty()
-//   @Min(1000000000, { message: 'businessId must be exactly 10 digits' }) // minimum 10-digit number
-//   @Max(9999999999, { message: 'businessId must be exactly 10 digits' }) // maximum 10-digit number
-
-//   businessId: number;
-
-//   @IsString()
-//   @IsNotEmpty()
-//   business_name: string;
-
-//   @IsString()
-//   @IsNotEmpty()
-//   business_type: string;
-
-
-//   @IsArray()
-// @ArrayMinSize(1, { message: 'At least one currency is required' })
-// @IsEnum(SUPPORTED_CURRENCIES, { each: true, message: 'Invalid currency' })
-// currencies: string[];
-
-
-//   @IsString()
-// @IsNotEmpty()
-// country: string;
-// }
-
-// export class CreateChargeDto {
-//   @IsNumber()
-//   amount: number;
-
-//   @IsString()
-//   @IsNotEmpty()
-//   currency: string;
-
-//   @IsString()
-//   @IsNotEmpty()
-//   accountId: string;
-// }
-
 
 export class CreateChargeDto {
   @IsString()
@@ -516,7 +475,6 @@ export class NGNCompletePayoutDto {
   token: string;
 }
 
-// Recipient KYC nested DTO
 export class RecipientKycDto {
   @IsString()
   @IsNotEmpty()
@@ -535,7 +493,6 @@ export class RecipientKycDto {
   issuedBy: string;
 }
 
-// Save Beneficiary DTO
 export class SaveBeneficiaryDto {
   @IsString()
   @IsNotEmpty()

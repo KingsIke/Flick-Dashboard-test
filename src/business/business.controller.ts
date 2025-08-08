@@ -35,12 +35,7 @@ export class BusinessController {
     return await this.businessService.addBusiness(req.user.sub, addBusinessDto);
   }
 
-  // @Get('balances')
-  // @UseGuards(JwtAuthGuard)
-  // @HttpCode(HttpStatus.OK)
-  // async getBalances(@Request() req) {
-  //   return await this.businessService.getBalances(req.user.sub);
-  // }
+
 
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
@@ -145,11 +140,6 @@ async getBeneficiaries(@Request() req, @Body('accountId') accountId: string) {
     return this.businessService.initiateUSDPayout(req.user.sub, usdPayoutDto);
   }
 
-  //   @UseGuards(JwtAuthGuard)
-  // @Post('create-payment-link')
-  // async createPaymentLink(@Request() req, @Body() createPaymentLinkDto: CreatePaymentLinkDto) {
-  //   return this.authService.createPaymentLink(req.user.sub, createPaymentLinkDto);
-  // }
 
   @UseGuards(JwtAuthGuard)
   @Post('fund-wallet')

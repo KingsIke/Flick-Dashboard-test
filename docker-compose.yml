@@ -1,0 +1,28 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15
+    container_name: flick_postgres
+    environment:
+      POSTGRES_USER: user_internal
+      POSTGRES_PASSWORD: 453622Ike
+      POSTGRES_DB: Flick
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - flick_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user_internal -d Flick"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+
+networks:
+  flick_network:
+    driver: bridge
