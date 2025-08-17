@@ -7,11 +7,7 @@ import { Type } from 'class-transformer';
 export class SignUpDto {
   @IsString()
   @IsNotEmpty()
-  firstName: string;
-
-  @IsString()
-  @IsNotEmpty()
-  lastName: string;
+  name: string;
 
   @IsEmail()
   email: string;

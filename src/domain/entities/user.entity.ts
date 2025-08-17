@@ -7,12 +7,6 @@ export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
-  firstName: string;
-
-  @Column()
-  lastName: string;
-  
   @Column({ nullable: true })
   name: string;
 
@@ -53,8 +47,8 @@ export class User {
   @Column({ nullable: true })
   country?: string;
 
-  @Column({ nullable: true })
-  bizAddress?: string;
+  // @Column({ nullable: true })
+  // bizAddress?: string;
 
   @Column({ nullable: true })
   referral_code?: string;

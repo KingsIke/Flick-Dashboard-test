@@ -41,7 +41,6 @@ export class AuthService {
 
       const user = await this.userRepository.createUser({
      ...signUpDto,
-        name: `${signUpDto.firstName} ${signUpDto.lastName}`,
         password: hashedPassword,
         verificationCode: otp,
         verificationExpiresAt,
@@ -206,4 +205,3 @@ console.log(user)
 
 
 }
-
