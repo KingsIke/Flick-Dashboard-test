@@ -10,7 +10,7 @@ import { AuthService } from './auth/auth';
 import { EmailService } from './infrastructure/services/email/email.service';
 import { UserRepository } from './infrastructure/repositories/user.repository';
 import { ConfigModule,
-  //  ConfigService 
+   ConfigService 
   } from '@nestjs/config';
 import { emailConfig } from './config/email/email.config';
 import { AuthController } from './auth/auth.controller';
@@ -46,12 +46,12 @@ import { ExchangeRateService } from './infrastructure/services/exchange-rate/exc
       isGlobal: true,
       load: [emailConfig],
     }),
-    TypeOrmModule.forRoot(typeOrmConfig),
-    //   TypeOrmModule.forRootAsync({
-    //   imports: [ConfigModule],
-    //   useFactory: typeOrmConfig,
-    //   inject: [ConfigService],
-    // }),
+    // TypeOrmModule.forRoot(typeOrmConfig),
+      TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: typeOrmConfig,
+      inject: [ConfigService],
+    }),
     TypeOrmModule.forFeature([User, Account, Wallet, Transaction, Bank, PaymentPage, Beneficiary, Country]), 
     JwtModule.register({
       secret: process.env.JWT_SECRET,

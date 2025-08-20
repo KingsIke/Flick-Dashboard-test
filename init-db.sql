@@ -10,7 +10,7 @@ CREATE TABLE accounts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     businessId VARCHAR(255) NOT NULL UNIQUE,
     business_name VARCHAR(255) NOT NULL UNIQUE,
-    account_type VARCHAR(50) NOT NULL,
+    business_type VARCHAR(50) NOT NULL,
     currency VARCHAR(3) NOT NULL,
     wallet_id UUID,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier */
-import { ArrayMinSize, IsArray, IsBoolean, IsEmail, IsEnum, IsIn, IsNotEmpty, IsNumber, IsNumberString, IsOptional, IsString, Length, Matches, Max, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsEmail, IsEnum, IsIn, IsNotEmpty, IsNumber, IsNumberString, IsOptional, IsString, Length, Matches, ValidateNested } from 'class-validator';
 import {COUNTRIES, SUPPORTED_CURRENCIES } from  "../../config/utils/countriesUtil";
 import { Type } from 'class-transformer';
 
@@ -8,10 +8,7 @@ export class SignUpDto {
   @IsString()
   @IsNotEmpty()
   name: string;
-
-  @IsEmail()
-  email: string;
-
+ 
   @IsString()
   @IsNotEmpty()
    @Matches(/^(?=.*[A-Z])(?=.*[a-zA-Z])(?=.*\d)(?=.*[\W_]).+$/, {
@@ -20,13 +17,16 @@ export class SignUpDto {
   })
   password: string;
 
+  @IsEmail()
+  email: string;
+
     @IsOptional()
   @IsIn(['NGN', 'USD', 'GBP', 'EUR']) 
   currency: string = 'NGN';
 
   @IsString()
   @IsNotEmpty()
-  businessId: number;
+  businessId: string;
 
   @IsString()
   @IsNotEmpty()
@@ -58,6 +58,44 @@ export class SignUpDto {
   @IsOptional()
   currencies?: string[];
 
+    @IsString()
+  @IsNotEmpty()
+  account_no: string;
+
+  @IsString()
+  @IsNotEmpty()
+  account_name: string;
+
+  @IsString()
+  @IsNotEmpty()
+  bank_name: string;
+    @IsString()
+  @IsOptional()
+  bank_code?: string;
+
+  @IsString()
+  @IsOptional()
+  bank_address?: string;
+
+  @IsString()
+  @IsOptional()
+  swift_code?: string;
+
+  @IsString()
+  @IsOptional()
+  sort_code?: string;
+
+  @IsString()
+  @IsOptional()
+  routing_number?: string;
+
+  @IsString()
+  @IsOptional()
+  iban?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isDomiciliary?: boolean;
 
 }
 
@@ -119,12 +157,9 @@ export class LoginDto {
 }
 
 export class AddBusinessDto {
-  @IsNumber()
+  @IsString()
   @IsNotEmpty()
-  @Min(1000000000, { message: 'businessId must be exactly 10 digits' }) // minimum 10-digit number
-  @Max(9999999999, { message: 'businessId must be exactly 10 digits' }) // maximum 10-digit number
-
-  businessId: number;
+  businessId: string;
 
   @IsString()
   @IsNotEmpty()
@@ -139,9 +174,6 @@ export class AddBusinessDto {
 @IsEnum(SUPPORTED_CURRENCIES, { each: true, message: 'Invalid currency' })
 currencies: string[];
 
-  @IsString()
-  @IsNotEmpty()
-  account_type: string;
 
   @IsString()
   @IsNotEmpty()

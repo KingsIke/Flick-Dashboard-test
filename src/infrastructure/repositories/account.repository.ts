@@ -9,7 +9,7 @@ export class AccountRepository extends Repository<Account> {
     super(Account, dataSource.createEntityManager());
   }
 
-  async findByBusinessId(businessId: number) {
+  async findByBusinessId(businessId: string) {
     return this.findOne({ where: { businessId }, relations: ['wallet'] });
   }
 }

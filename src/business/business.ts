@@ -18,8 +18,6 @@ import { CountryRepository } from '../infrastructure/repositories/country.reposi
 import { BeneficiaryRepository } from '../infrastructure/repositories/beneficiary.repository';
 import { ExchangeRateService } from '../infrastructure/services/exchange-rate/exchange-rate.service';
 import { Beneficiary } from '../domain/entities/beneficiary.entity';
-// import { Console } from 'console';
-// import { Wallet } from 'src/domain/entities/wallet.entity';
 
 
 @Injectable()
@@ -71,7 +69,7 @@ export class BusinessService {
     const account = await this.accountRepository.save(
       this.accountRepository.create({
         ...addBusinessDto,
-        account_type: 'merchant',
+        business_type: 'merchant',
         currency: addBusinessDto.currencies?.[0],
         users: [user],
       })
@@ -1727,7 +1725,7 @@ async getTransactions(accountId: string) {
         supportPhone: user.supportPhone || '',
         phone: user.phone,
         country: user.country,
-        bizAddress: user.bizAddress,
+        // bizAddress: user.bizAddress,
         avatar: user.avatar,
         website: user.website,
         referral_code: user.referral_code,
@@ -2220,7 +2218,7 @@ async getTransactions(accountId: string) {
           name: user.name,
           bizClass: 'sub_business',
           alias: ' ',
-          bizAddress: user.bizAddress,
+          // bizAddress: user.bizAddress,
           password: '',
           token: '', 
           business_type: account.business_type,

@@ -38,7 +38,7 @@ export const typeOrmConfig = (configService: ConfigService = new ConfigService()
     password: decodeURIComponent(url.password),
     database: url.pathname.slice(1),
     entities: [User, Account, Wallet, Transaction, Bank, PaymentPage, Beneficiary, Country],
-    synchronize: true,
+    synchronize: false,
     migrations: [__dirname + '/../migrations/*{.ts,.js}'],
     migrationsRun: true,
     logging: ['error', 'query'],

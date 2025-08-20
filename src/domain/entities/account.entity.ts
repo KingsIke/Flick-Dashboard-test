@@ -12,7 +12,7 @@ export class Account {
   id: string;
 
   @Column()
-  businessId: number;
+  businessId: string;
 
   @Column()
   business_name: string;
@@ -90,8 +90,6 @@ currencies: string[];
 
   
   
-    @Column()
-    account_type: string;
   
     @Column()
     country: string;
