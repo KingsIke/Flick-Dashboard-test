@@ -11,7 +11,11 @@ import { AccountRepository } from '../infrastructure/repositories/account.reposi
 import { WalletRepository } from '../infrastructure/repositories/wallet.repository';
 import { TokenEncryptionUtil } from '../config/utils/TokenEncryptionUtil';
 import { TransactionRepository } from '../infrastructure/repositories/transaction.repository';
-// import { Wallet } from 'src/domain/entities/wallet.entity';
+import { User } from '../domain/entities/user.entity';
+import { Account } from '../domain/entities/account.entity';
+import { DataSource, QueryRunner } from 'typeorm';
+import { Wallet } from '../domain/entities/wallet.entity';
+import { Transaction } from '../domain/entities/transaction.entity';
 
 @Injectable()
 export class AuthService {
@@ -23,298 +27,175 @@ export class AuthService {
     private readonly walletRepository: WalletRepository,
     private tokenEncryptionUtil: TokenEncryptionUtil,
         private readonly transactionRepository: TransactionRepository,
+    private readonly dataSource: DataSource,  
+
 
   ) {}
 
    private getOtpExpiry(minutes = 10): Date {
     return new Date(Date.now() + minutes * 60 * 1000);
   }
-//    async signUp(signUpDto: SignUpDto) {
-//     try {
-//       const existingUser = await this.userRepository.findByEmail( signUpDto.email);
-//       if (existingUser) throw new HttpException('Email already exists', HttpStatus.BAD_REQUEST);
-
-//       const hashedPassword = await hash(signUpDto.password, 10);
-//       const otp = crypto.randomInt(100000, 999999).toString();
-//       const verificationExpiresAt = this.getOtpExpiry();
-
-
-//       const user = await this.userRepository.createUser({
-//      ...signUpDto,
-//         password: hashedPassword,
-//         verificationCode: otp,
-//         verificationExpiresAt,
-//         isVerified: false,
-//         referral_code: crypto.randomBytes(5).toString('hex'),
-//       });
-// console.log(user)
-    
-//         await this.emailService.sendVerificationEmail(signUpDto.email, otp);
-   
-
-//       return { message: 'Please verify your email with the OTP sent', 
-//         data: user
-//        };
-//     } catch (error) {
-//       if (error instanceof HttpException) throw error;
-//       console.error('Sign up error:', error);
-//       throw new HttpException('Failed to sign up', HttpStatus.INTERNAL_SERVER_ERROR);
-//     }
-//   }
-
-// async signUp(signUpDto: SignUpDto) {
-//   try {
-//     const existingUser = await this.userRepository.findByEmail(signUpDto.email);
-//     if (existingUser) {
-//       throw new HttpException('Email already exists', HttpStatus.BAD_REQUEST);
-//     }
-    
-
-//     const hashedPassword = await hash(signUpDto.password, 10);
-//     const otp = crypto.randomInt(100000, 999999).toString();
-//     const verificationExpiresAt = this.getOtpExpiry();
-
-   
-
-//     // console.log('✅ User created:', user.id);
-
-//     const account = await this.accountRepository.save(
-//       this.accountRepository.create({
-//         businessId: signUpDto.businessId,
-//         business_name: `${signUpDto.business_name}'s Business`,
-//         business_type: 'merchant',
-//         currency: signUpDto.currencies?.[0] || 'NGN',
-//         country: signUpDto.country,
-//         account_no: signUpDto.account_no,
-//         account_name: signUpDto.account_name,
-//         bank_name: signUpDto.bank_name,
-//         // users: [user],
-//       }),
-//     );
-
-//     console.log('✅ Account created:', account.id);
-//     const initialFundingAmount = 1000;
-//     const selectedCurrencies = signUpDto.currencies || ['NGN'];
-
-//     const balances = selectedCurrencies.map(currency => ({
-//       currency,
-//       api_balance: 0,
-//       payout_balance: initialFundingAmount,
-//       collection_balance: initialFundingAmount,
-//     }));
-
-//     const wallet = this.walletRepository.create({
-//       account,
-//       account_id: account.id,
-//       balances,
-//     });
-//     await this.walletRepository.save(wallet);
-//     console.log('✅ Wallet created:', wallet.id);
-
-//     for (const balance of balances) {
-//       const transactionId = `flick-${crypto.randomUUID()}`;
-//       const initialFunding = this.transactionRepository.create({
-//         eventname: `Initial Funding ${balance.currency}`,
-//         transtype: 'credit',
-//         total_amount: balance.collection_balance,
-//         settled_amount: balance.collection_balance,
-//         fee_charged: 0,
-//         currency_settled: balance.currency,
-//         dated: new Date(),
-//         status: 'success',
-//         initiator: signUpDto.email,
-//         type: 'Inflow',
-//         transactionid: transactionId,
-//         narration: `Initial wallet funding for ${balance.currency} on signup`,
-//         balance_before: 0,
-//         balance_after: balance.collection_balance,
-//         channel: 'system',
-//         email: signUpDto.email,
-//         wallet,
-//       });
-
-//       await this.transactionRepository.save(initialFunding);
-//       console.log(`✅ Initial funding transaction created for ${balance.currency}:`, transactionId);
-//     }
-
-//      const user = await this.userRepository.createUser({
-//       ...signUpDto,
-//       password: hashedPassword,
-//       verificationCode: otp,
-//       verificationExpiresAt,
-//       isVerified: false,
-//       referral_code: crypto.randomBytes(5).toString('hex'),
-//     });
-
-//     await this.emailService.sendVerificationEmail(signUpDto.email, otp);
-
-//     return {
-//       message: 'Please verify your email with the OTP sent',
-//       data: {
-//         user,
-//         accountId: account.id,
-//         walletId: wallet.id,
-//       },
-//     };
-//   } catch (error) {
-//     console.error('Sign up error:', error);
-//     if (error instanceof HttpException) throw error;
-
-//     throw new HttpException('Failed to sign up', HttpStatus.INTERNAL_SERVER_ERROR);
-//   }
-// }
 async signUp(signUpDto: SignUpDto & Partial<AddBusinessDto>) {
+  const queryRunner = this.dataSource.createQueryRunner();
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
+
   try {
+   signUpDto.email = signUpDto.email.trim().toLowerCase();
+
+
+    const { confirm_password, ...userPayload } = signUpDto;
+
     const existingUser = await this.userRepository.findByEmail(signUpDto.email);
     if (existingUser) throw new HttpException('Email already exists', HttpStatus.BAD_REQUEST);
+
+    const existingBusiness = await this.accountRepository.findOne({
+      where: [{ businessId: signUpDto.businessId }, { business_name: signUpDto.business_name }],
+    });
+    if (existingBusiness) {
+      throw new HttpException(
+        `Business with businessId '${signUpDto.businessId}' or business_name '${signUpDto.business_name}' already exists`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (signUpDto.password !== confirm_password) {
+      throw new HttpException('Passwords do not match', HttpStatus.BAD_REQUEST);
+    }
 
     const hashedPassword = await hash(signUpDto.password, 10);
     const otp = crypto.randomInt(100000, 999999).toString();
     const verificationExpiresAt = this.getOtpExpiry();
 
-    const user = await this.userRepository.createUser({
-      ...signUpDto,
+    const user = queryRunner.manager.create(User, {
+      ...userPayload,
       password: hashedPassword,
       verificationCode: otp,
       verificationExpiresAt,
       isVerified: false,
       referral_code: crypto.randomBytes(5).toString('hex'),
     });
-
-    console.log('1: Created user:', user.id);
+    await queryRunner.manager.save(user);
 
     await this.emailService.sendVerificationEmail(signUpDto.email, otp);
 
-    const businessDto: AddBusinessDto = {
+    const businessDto = {
       businessId: signUpDto.businessId || crypto.randomUUID(),
       business_name: `${signUpDto.business_name} Business`,
-      currencies: signUpDto.currencies || ['NGN'],
+      currencies: ['NGN'],
       business_type: 'merchant',
-        country: signUpDto.country || '',
-        account_no: signUpDto.account_no || '',
-        account_name: signUpDto.account_name || '',
-        bank_name: signUpDto.bank_name || '',
+      country: signUpDto.country,
+      bizAddress: signUpDto.bizAddress,
+      business_website: signUpDto.business_website,
+      account_no: '',
+      account_name: '',
+      bank_name: '',
     };
 
-    const businessResult = await this.addBusiness(user.id, businessDto);
-    console.log('2: Business/account/wallet created for user:', businessResult);
+    await this.addBusinessTransactional(queryRunner, user.id, businessDto);
+
+    await queryRunner.commitTransaction();
 
     return {
-      message: 'Please verify your email with the OTP sent',
-      data: {
-        user
-      },
+      message: 'Please verify your email with the OTP sent to your mail',
+      data: {},
     };
   } catch (error) {
-    if (error instanceof HttpException) throw error;
+    await queryRunner.rollbackTransaction();
     console.error('Sign up error:', error);
+    if (error instanceof HttpException) throw error;
     throw new HttpException('Failed to sign up', HttpStatus.INTERNAL_SERVER_ERROR);
+  } finally {
+    await queryRunner.release();
   }
 }
 
- async addBusiness(userId: string, addBusinessDto: AddBusinessDto) {
-    try {
-      const user = await this.userRepository.findOne({
-        where: { id: userId },
-        relations: ['accounts'],
-      });
+async addBusinessTransactional(queryRunner: QueryRunner, userId: string, addBusinessDto: AddBusinessDto) {
+  const user = await queryRunner.manager.findOne(User, {
+    where: { id: userId },
+    relations: ['accounts'],
+  });
 
-      if (!user) {
-        throw new HttpException('User not found', HttpStatus.NOT_FOUND);
-      }
+  if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+  if (user.accounts?.length > 0) throw new HttpException('User can only have one account', HttpStatus.BAD_REQUEST);
 
-      if (user.accounts && user.accounts.length > 0) {
-        throw new HttpException('User can only have one account', HttpStatus.BAD_REQUEST);
-      }
+  const { businessId, business_name } = addBusinessDto;
 
-      const { businessId, business_name } = addBusinessDto;
-
-      const existingBusiness = await this.accountRepository.findOne({
-        where: [{ businessId }, { business_name }],
-      });
-
-      if (existingBusiness) {
-        throw new HttpException(
-          `Business with businessId '${businessId}' or business_name '${business_name}' already exists`,
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      // Create Account
-      const account = this.accountRepository.create({
-        ...addBusinessDto,
-        business_type: 'merchant',
-        currency: addBusinessDto.currencies?.[0],
-        users: [user],
-      });
-      await this.accountRepository.save(account);
-      console.log('2: Created account with ID:', account.id);
-
-      // Setup Wallet
-      const initialFundingAmount = 1000;
-      const selectedCurrencies = addBusinessDto.currencies || [];
-
-      const balances = selectedCurrencies.map(currency => ({
-        currency,
-        api_balance: 0,
-        payout_balance: initialFundingAmount,
-        collection_balance: initialFundingAmount,
-      }));
-
-      const wallet = this.walletRepository.create({
-        account,
-        account_id: account.id,
-        balances,
-      });
-      await this.walletRepository.save(wallet);
-      console.log('3: Saved wallet with ID:', wallet.id);
-
-      // Initial funding transactions
-      for (const balance of balances) {
-        const transactionId = `flick-${crypto.randomUUID()}`;
-        const initialFunding = this.transactionRepository.create({
-          eventname: `Initial Funding ${balance.currency}`,
-          transtype: 'credit',
-          total_amount: balance.collection_balance,
-          settled_amount: balance.collection_balance,
-          fee_charged: 0,
-          currency_settled: balance.currency,
-          dated: new Date(),
-          status: 'success',
-          initiator: user.email,
-          type: 'Inflow',
-          transactionid: transactionId,
-          narration: `Initial wallet funding for ${balance.currency} on signup`,
-          balance_before: 0,
-          balance_after: balance.collection_balance,
-          channel: 'system',
-          email: user.email,
-          wallet,
-        });
-        await this.transactionRepository.save(initialFunding);
-        console.log(`4: Created initial funding transaction for ${balance.currency}`);
-      }
-
-      return {
-        message: 'Business added successfully',
-        accountId: account.id,
-        walletId: wallet.id,
-      };
-    } catch (error) {
-      console.error('Add business error:', error);
-      if (error instanceof HttpException) throw error;
-
-      throw new HttpException(
-        error.message || 'Failed to add business',
-        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
+  const existingBusiness = await queryRunner.manager.findOne(Account, {
+    where: [{ businessId }, { business_name }],
+  });
+  if (existingBusiness) {
+    throw new HttpException(
+      `Business with businessId '${businessId}' or business_name '${business_name}' already exists`,
+      HttpStatus.BAD_REQUEST,
+    );
   }
+
+  const account = queryRunner.manager.create(Account, {
+    ...addBusinessDto,
+    business_type: 'merchant',
+    currency: addBusinessDto.currencies?.[0],
+    users: [user],
+  });
+  await queryRunner.manager.save(account);
+
+  const initialFundingAmount = 1000;
+  const balances = (addBusinessDto.currencies || []).map(currency => ({
+    currency,
+    api_balance: 0,
+    payout_balance: initialFundingAmount,
+    collection_balance: initialFundingAmount,
+  }));
+
+  const wallet = queryRunner.manager.create(Wallet, {
+    account,
+    account_id: account.id,
+    balances,
+  });
+  await queryRunner.manager.save(wallet);
+
+  for (const balance of balances) {
+    const transactionId = `flick-${crypto.randomUUID()}`;
+    const initialFunding = queryRunner.manager.create(Transaction, {
+      eventname: `Initial Funding ${balance.currency}`,
+      transtype: 'credit',
+      total_amount: balance.collection_balance,
+      settled_amount: balance.collection_balance,
+      fee_charged: 0,
+      currency_settled: balance.currency,
+      dated: new Date(),
+      status: 'success',
+      initiator: user.email,
+      type: 'Inflow',
+      transactionid: transactionId,
+      narration: `Initial wallet funding for ${balance.currency} on signup`,
+      balance_before: 0,
+      balance_after: balance.collection_balance,
+      channel: 'system',
+      email: user.email,
+      wallet,
+    });
+    await queryRunner.manager.save(initialFunding);
+  }
+
+  return {
+    message: 'Business added successfully',
+    accountId: account.id,
+    walletId: wallet.id,
+  };
+}
 
  async verifyEmail(verifyEmailDto: VerifyEmailDto) {
   try{
+
+    console.log("hello")
+  verifyEmailDto.email = verifyEmailDto.email.trim().toLowerCase();
+
     const { email, otp } = verifyEmailDto;
+    console.log(email, otp)
+
     const user = await this.userRepository.findByEmail(email);
+    console.log(user)
     if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
 
     if (user.isVerified) throw new HttpException('Email already verified', HttpStatus.BAD_REQUEST);
@@ -329,9 +210,11 @@ async signUp(signUpDto: SignUpDto & Partial<AddBusinessDto>) {
       verificationCode: null,
       verificationExpiresAt: null,
     });
+return await this.loginAfterVerification(user);
 
-    return { message: 'Email verified successfully' };
-       } catch (error) {
+
+       } 
+       catch (error) {
       if (error instanceof HttpException) throw error;
       console.error('verify email error:', error);
       throw new HttpException('Failed to verify email', HttpStatus.INTERNAL_SERVER_ERROR);
@@ -341,6 +224,9 @@ async signUp(signUpDto: SignUpDto & Partial<AddBusinessDto>) {
   async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
     try{
     const { email } = forgotPasswordDto;
+    forgotPasswordDto.email = forgotPasswordDto.email.trim().toLowerCase();
+
+    
     const user = await this.userRepository.findByEmail(email);
     if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
 
@@ -365,6 +251,8 @@ async signUp(signUpDto: SignUpDto & Partial<AddBusinessDto>) {
   async resendOtp(resendOtpDto: ResendOtpDto) {
     try{
     const { email, type } = resendOtpDto;
+    resendOtpDto.email = resendOtpDto.email.trim().toLowerCase();
+
     const user = await this.userRepository.findByEmail(email);
     if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
 
@@ -399,6 +287,9 @@ async signUp(signUpDto: SignUpDto & Partial<AddBusinessDto>) {
   async resetPassword(resetPasswordDto: ResetPasswordDto) {
     try{
     const { email, otp, newPassword } = resetPasswordDto;
+    resetPasswordDto.email = resetPasswordDto.email.trim().toLowerCase();
+
+    
     const user = await this.userRepository.findByEmail(email);
     if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
 
@@ -423,7 +314,9 @@ async signUp(signUpDto: SignUpDto & Partial<AddBusinessDto>) {
 
   async login(loginDto: LoginDto) {
     try{
-    const { email, password } = loginDto;                 
+    const { email, password } = loginDto;   
+    loginDto.email = loginDto.email.trim().toLowerCase();
+
     const user = await this.userRepository.findByEmail(email);
     console.log(loginDto.email, "and", email)
     console.log(user)
@@ -434,12 +327,10 @@ async signUp(signUpDto: SignUpDto & Partial<AddBusinessDto>) {
     const isPasswordValid = await compare(password, user.password);
     if (!isPasswordValid) throw new HttpException('Invalid credentials', HttpStatus.UNAUTHORIZED);
 
-    const payload = { sub: user.id, email: user.email };
-    const jwt = this.jwtService.sign(payload);
-    console.log(jwt)
-    const token = this.tokenEncryptionUtil.encryptToken(jwt);
 
-    return { message: 'Login successful', token, accounts: user.accounts };
+return await this.loginAfterVerification(user);
+
+  
      } catch (error) {
       if (error instanceof HttpException) throw error;
       console.error('Login error:', error);
@@ -447,9 +338,73 @@ async signUp(signUpDto: SignUpDto & Partial<AddBusinessDto>) {
     } 
   }
 
+  async loginAfterVerification(user: User) {
+  const payload = { sub: user.id, email: user.email };
+  const jwt = this.jwtService.sign(payload);
+  const token = this.tokenEncryptionUtil.encryptToken(jwt);
+  const userInfo = await this.getUserInfo(user.id);
 
+  return {
+    message: 'Login successful',
+    token,
+    user: userInfo.data,
+  };
+}
 
+  async getUserInfo(userId: string) {
+    try{
+    const user = await this.userRepository.findOne({ where: { id: userId }, relations: ['accounts', 'accounts.wallet'] });
+    if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
 
+    return {
+      data: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        business_email: user.email,
+        supportEmail: user.supportEmail || '',
+        supportPhone: user.supportPhone || '',
+        phone: user.phone,
+        country: user.country,
+        bizAddress: user.accounts[0]?.bizAddress,
+        avatar: user.avatar,
+        website: user.website,
+        referral_code: user.referral_code,
+        isVerified: user.isVerified,
+        isLive: user.isLive,
+        business_Id: user.accounts[0]?.id,
+        businessId: user.accounts[0]?.businessId,
+        business_name: user.accounts[0]?.business_name,
+        business_type: user.accounts[0]?.business_type,
+        checkout_settings: user.accounts[0]?.checkout_settings,
+        merchantCode: user.accounts[0]?.merchantCode,
+        webhook_url: user.accounts[0]?.webhook_url,
+        settlementType: user.accounts[0]?.settlementType,
+        isVulaUser: user.accounts[0]?.isVulaUser,
+        is_identity_only: user.accounts[0]?.is_identity_only,
+        is_regular: user.accounts[0]?.is_regular,
+        is_otc: user.accounts[0]?.is_otc,
+        is_portco: user.accounts[0]?.is_portco,
+        is_tx: user.accounts[0]?.is_tx,
+        is_vc: user.accounts[0]?.is_vc,
+        FPR: user.accounts[0]?.FPR,
+        YPEM: user.accounts[0]?.YPEM,
+        dated: user.accounts[0]?.dated,
+        lowLimit: 3500, 
+        vc_code: `CUS_${crypto.randomBytes(8).toString('hex')}`,
+        is_data: true, 
+        alias: '', 
+        password: '********',
+        total_whitelabelling: true, 
+        is_payment: true, 
+      },
+    };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      console.error('Get user info error:', error);
+      throw new HttpException('Failed to retrieve user info', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 
 
 

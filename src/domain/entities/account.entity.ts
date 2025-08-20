@@ -20,6 +20,13 @@ export class Account {
   @Column()
   business_type: string;
 
+  @Column({ nullable: true })
+bizAddress?: string;
+
+@Column()
+business_website?: string;
+
+
   @Column({ type: 'jsonb', nullable: true })
   checkout_settings: {
     customization: {

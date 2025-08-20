@@ -17,12 +17,28 @@ export class SignUpDto {
   })
   password: string;
 
+   @IsString()
+  @IsNotEmpty()
+  confirm_password: string;
+
+
   @IsEmail()
   email: string;
 
-    @IsOptional()
-  @IsIn(['NGN', 'USD', 'GBP', 'EUR']) 
-  currency: string = 'NGN';
+
+  isLive: boolean = false;
+  isVerified: boolean = false;
+
+  @IsString()
+  @IsNotEmpty()
+  phone: string;
+
+  @IsString()
+    @IsNotEmpty()
+  @IsEnum(COUNTRIES, { message: 'Invalid country' })
+  country: string;
+
+
 
   @IsString()
   @IsNotEmpty()
@@ -36,40 +52,37 @@ export class SignUpDto {
   @IsNotEmpty()
   business_type: string;
 
-  isLive: boolean = false;
-  isVerified: boolean = false;
-
   @IsString()
-  phone?: string;
+  @IsNotEmpty()
+  business_website: string;
 
-  @IsString()
-    @IsNotEmpty()
-  @IsEnum(COUNTRIES, { message: 'Invalid country' })
-  country?: string;
-
+  @IsOptional()
   @IsString()
   bizAddress?: string;
-  
+
+// @IsString()
+// @IsNotEmpty({ message: 'Currency is required' })
+// @IsEnum(SUPPORTED_CURRENCIES, { 
+//   each: true, 
+//   message: `Currency must be one of: ${SUPPORTED_CURRENCIES.join(', ')}` 
+// })
+// currency: string;
+
+
+
   @IsString()
-  website?: string;
-
-    @IsArray()
-  @IsEnum(SUPPORTED_CURRENCIES, { each: true, message: 'Invalid currency' })
   @IsOptional()
-  currencies?: string[];
-
-    @IsString()
-  @IsNotEmpty()
   account_no: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   account_name: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   bank_name: string;
-    @IsString()
+
+  @IsString()
   @IsOptional()
   bank_code?: string;
 
@@ -96,6 +109,7 @@ export class SignUpDto {
   @IsBoolean()
   @IsOptional()
   isDomiciliary?: boolean;
+
 
 }
 
@@ -169,6 +183,15 @@ export class AddBusinessDto {
   @IsNotEmpty()
   business_type: string;
 
+  @IsString()
+  @IsNotEmpty()
+  business_website: string;
+
+  @IsOptional()
+  @IsString()
+  bizAddress?: string;
+
+
    @IsArray()
 @ArrayMinSize(1, { message: 'At least one currency is required' })
 @IsEnum(SUPPORTED_CURRENCIES, { each: true, message: 'Invalid currency' })
@@ -185,15 +208,15 @@ currencies: string[];
 //   currency: Currency;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   account_no: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   account_name: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   bank_name: string;
 
   @IsString()
