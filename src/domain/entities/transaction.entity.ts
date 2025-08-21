@@ -64,7 +64,7 @@ export class Transaction {
   @Column({ nullable: true })
   email?: string;
 
-  @ManyToOne(() => Wallet, (wallet) => wallet.transactions)
-  @JoinColumn({ name: 'walletId' })
+ @ManyToOne(() => Wallet, (wallet) => wallet.transactions)
+  @JoinColumn({ name: 'wallet_id' }) // ✅ FIX: use correct column
   wallet: Wallet;
 }

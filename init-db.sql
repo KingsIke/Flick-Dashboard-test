@@ -42,7 +42,7 @@ CREATE TABLE transactions (
     channel VARCHAR(50),
     beneficiary_bank VARCHAR(255),
     email VARCHAR(255),
-    walletId UUID REFERENCES wallets(id),
+    wallet_id UUID REFERENCES wallets(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

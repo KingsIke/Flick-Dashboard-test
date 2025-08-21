@@ -11,20 +11,21 @@ export class Account {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
-  businessId: string;
-
-  @Column()
-  business_name: string;
-
-  @Column()
-  business_type: string;
-
-  @Column({ nullable: true })
-bizAddress?: string;
+@Column({ nullable: true })
+businessId?: string;
 
 @Column()
+business_name: string;
+
+@Column()
+business_type: string;
+
+@Column({ nullable: true })
+bizAddress?: string;
+
+@Column({ nullable: true })
 business_website?: string;
+
 
 
   @Column({ type: 'jsonb', nullable: true })
@@ -134,7 +135,9 @@ currencies: string[];
     @Column({ default: false })
     is_domiciliary: boolean;
 
-     @OneToOne(() => Wallet, (wallet) => wallet.account, { cascade: true })
+  //    @OneToOne(() => Wallet, (wallet) => wallet.account, { cascade: true })
+  // wallet: Wallet;
+    @OneToOne(() => Wallet, (wallet) => wallet.account)
   wallet: Wallet;
 
   @ManyToMany(() => User, (user) => user.accounts)

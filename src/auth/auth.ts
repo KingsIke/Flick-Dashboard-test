@@ -65,6 +65,7 @@ async signUp(signUpDto: SignUpDto & Partial<AddBusinessDto>) {
 
     const hashedPassword = await hash(signUpDto.password, 10);
     const otp = crypto.randomInt(100000, 999999).toString();
+    console.log(otp)
     const verificationExpiresAt = this.getOtpExpiry();
 
     const user = queryRunner.manager.create(User, {
@@ -181,7 +182,9 @@ async addBusinessTransactional(queryRunner: QueryRunner, userId: string, addBusi
   return {
     message: 'Business added successfully',
     accountId: account.id,
-    walletId: wallet.id,
+    // walletId: wallet.id,
+    wallet_id: wallet.id,
+
   };
 }
 
@@ -258,6 +261,7 @@ return await this.loginAfterVerification(user);
 
     const otp = crypto.randomInt(100000, 999999).toString();
     const expiresAt = this.getOtpExpiry()
+    console.log(otp)
 
     if (type === 'verification') {
       if (user.isVerified) throw new HttpException('Email already verified', HttpStatus.BAD_REQUEST);

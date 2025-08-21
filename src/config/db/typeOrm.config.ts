@@ -24,7 +24,10 @@ dotenv.config();
 // //   synchronize: true,
 // //   migrations: [__dirname + '/../migrations/*{.ts,.js}'],
 // //   migrationsRun: true,
-// // };
+// // };*
+
+
+
 
 export const typeOrmConfig = (configService: ConfigService = new ConfigService()): TypeOrmModuleOptions => {
   const connectionString = configService.get<string>('DATABASE_URL') || 'postgresql://Flick:Flick12345@@postgresql-177046-0.cloudclusters.net:10031/Flick';
@@ -38,7 +41,7 @@ export const typeOrmConfig = (configService: ConfigService = new ConfigService()
     password: decodeURIComponent(url.password),
     database: url.pathname.slice(1),
     entities: [User, Account, Wallet, Transaction, Bank, PaymentPage, Beneficiary, Country],
-    synchronize: false,
+    synchronize: true,
     migrations: [__dirname + '/../migrations/*{.ts,.js}'],
     migrationsRun: true,
     logging: ['error', 'query'],

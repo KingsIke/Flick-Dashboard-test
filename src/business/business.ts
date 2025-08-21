@@ -123,7 +123,7 @@ export class BusinessService {
     }
 
     console.log('7: Business added successfully');
-    return { message: 'Business added successfully', accountId: account.id, walletId: wallet.id };
+    return { message: 'Business added successfully', accountId: account.id,wallet_id: wallet.id };
   } catch (error) {
     console.error('Add business error:', error);
     if (error instanceof HttpException) throw error;
