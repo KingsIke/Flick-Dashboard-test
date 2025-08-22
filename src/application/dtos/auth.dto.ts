@@ -249,50 +249,93 @@ currencies: string[];
 }
 
 
-export class CreateChargeDto {
-  @IsString()
-  @IsNotEmpty()
-  accountId: string;
+// export class CreateChargeDto {
+//   @IsString()
+//   @IsNotEmpty()
+//   accountId: string;
 
-  @IsNumber()
+//   @IsNumber({ allowNaN: false, allowInfinity: false })
+//   @IsNotEmpty()
+//   amount: number;
+  
+
+//   @IsString()
+//   @IsNotEmpty()
+//   currency: string;
+
+//   @IsString()
+//   @IsOptional()
+//   pageName?: string;
+
+//   @IsString()
+//   @IsOptional()
+//   description?: string;
+
+//   @IsString()
+//   @IsOptional()
+//   customLink?: string;
+
+//   @IsString()
+//   @IsOptional()
+//   redirectLink?: string;
+
+//   @IsString()
+//   @IsOptional()
+//   successmsg?: string;
+
+//   @IsString()
+//   @IsNotEmpty()
+//   currency_collected: string;
+
+//   @IsString()
+//   @IsOptional()
+//   currency_settled?: string;
+
+//   @IsString()
+//   @IsNotEmpty()
+//   productType: string;
+// }
+
+export class CreateChargeDto {
+  @IsNumber({ allowNaN: false, allowInfinity: false })
   @IsNotEmpty()
   amount: number;
+}
+
+export class CardChargeDto {
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  @IsNotEmpty()
+  @Type(() => Number)
+  amount: number;
+
+  // @IsString()
+  // @IsNotEmpty()
+  // @IsEnum(SUPPORTED_CURRENCIES, { message: 'Invalid currency' })
+  // currency: string;
 
   @IsString()
   @IsNotEmpty()
-  currency: string;
-
-  @IsString()
-  @IsOptional()
-  pageName?: string;
-
-  @IsString()
-  @IsOptional()
-  description?: string;
-
-  @IsString()
-  @IsOptional()
-  customLink?: string;
-
-  @IsString()
-  @IsOptional()
-  redirectLink?: string;
-
-  @IsString()
-  @IsOptional()
-  successmsg?: string;
+  @Matches(/^\d{16}$/, { message: 'Card number must be 16 digits' })
+  cardNumber: string;
 
   @IsString()
   @IsNotEmpty()
-  currency_collected: string;
-
-  @IsString()
-  @IsOptional()
-  currency_settled?: string;
+  @Matches(/^\d{3,4}$/, { message: 'CVV must be 3 or 4 digits' })
+  cvv: string;
 
   @IsString()
   @IsNotEmpty()
-  productType: string;
+  @Matches(/^(0[1-9]|1[0-2])\/?([0-9]{2})$/, { message: 'Card date must be in MM/YY format' })
+  cardDate: string;
+
+  @IsString()
+  @IsNotEmpty()
+  cardName: string;
+
+  @IsString()
+  @IsNotEmpty()
+
+  transactionId?: string;
 }
 
 

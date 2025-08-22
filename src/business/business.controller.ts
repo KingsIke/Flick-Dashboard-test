@@ -14,7 +14,7 @@ import {
 import { AuthService } from '../auth/auth';
 import { BankService } from '../infrastructure/services/banks/bank.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { ConvertAndFundDto, CreateChargeDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanCreateMerchantDto, SaveBeneficiaryDto, USDPayoutDto } from '../application/dtos/auth.dto';
+import { CardChargeDto, ConvertAndFundDto, CreateChargeDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanCreateMerchantDto, SaveBeneficiaryDto, USDPayoutDto } from '../application/dtos/auth.dto';
 import { BusinessService } from './business';
 
 
@@ -57,7 +57,13 @@ export class BusinessController {
   async createCharge(@Request() req, @Body() chargeDto: CreateChargeDto) {
     return this.businessService.createCharge(req.user.sub, chargeDto);
   }
-
+@Post('charge/card')
+ @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+async createCardCharge(@Body() cardChargeDto: CardChargeDto, @Request() req) {
+  // const userId = req.user.sub;
+  return this.businessService.createCardCharge(req.user.sub, cardChargeDto);
+}
   @Post('nuban-create-merchant')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)

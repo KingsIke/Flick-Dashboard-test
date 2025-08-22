@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable prettier/prettier */
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { AddBusinessDto, CardDetailsDto, ConvertAndFundDto, CreateChargeDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanCreateMerchantDto, SaveBeneficiaryDto, USDPayoutDto } from '../application/dtos/auth.dto';
+import { AddBusinessDto, CardChargeDto, CardDetailsDto, ConvertAndFundDto, CreateChargeDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanCreateMerchantDto, SaveBeneficiaryDto, USDPayoutDto } from '../application/dtos/auth.dto';
 import { AccountRepository } from '../infrastructure/repositories/account.repository';
 import { TransactionRepository } from '../infrastructure/repositories/transaction.repository';
 import { UserRepository } from '../infrastructure/repositories/user.repository';
@@ -18,6 +19,7 @@ import { CountryRepository } from '../infrastructure/repositories/country.reposi
 import { BeneficiaryRepository } from '../infrastructure/repositories/beneficiary.repository';
 import { ExchangeRateService } from '../infrastructure/services/exchange-rate/exchange-rate.service';
 import { Beneficiary } from '../domain/entities/beneficiary.entity';
+import { Transaction } from 'src/domain/entities/transaction.entity';
 
 
 @Injectable()
@@ -134,149 +136,149 @@ export class BusinessService {
     );
   }
 }
-  async createCharge(userId: string, chargeDto: CreateChargeDto) {
-    try {
-      const account = await this.accountRepository.findOne({
-        where: { id: chargeDto.accountId },
-        relations: ['wallet', 'wallet.transactions'],
-      });
-      if (!account) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
+//   async createCharge1(userId: string, chargeDto: CreateChargeDto) {
+//     try {
+//       const account = await this.accountRepository.findOne({
+//         where: { id: chargeDto.accountId },
+//         relations: ['wallet', 'wallet.transactions'],
+//       });
+//       if (!account) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
   
-      if (!account.wallet) {
-        console.warn(`Account ${account.id} (businessId: ${account.businessId}) has no wallet`);
-        throw new HttpException('Cannot create charge: Account has no wallet', HttpStatus.BAD_REQUEST);
-      }
+//       if (!account.wallet) {
+//         console.warn(`Account ${account.id} (businessId: ${account.businessId}) has no wallet`);
+//         throw new HttpException('Cannot create charge: Account has no wallet', HttpStatus.BAD_REQUEST);
+//       }
   
-      const user = await this.userRepository.findOne({ where: { id: userId } });
-      if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+//       const user = await this.userRepository.findOne({ where: { id: userId } });
+//       if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
   
-      const transactionId = `flick-${crypto.randomUUID()}`;
-      const access_code = crypto.randomBytes(5).toString('hex');
-      const charges = Math.round(chargeDto.amount * 0.0135);
-      const amountPayable = chargeDto.amount;
-      const nairaEquivalent = chargeDto.currency === 'NGN' ? amountPayable : amountPayable * 1;
-      const paymentUrl = `https://checkout.paywithflick.co/pages/${access_code}`;
-      const custompaymentUrl = chargeDto.customLink ? `https://checkout.paywithflick.co/pages/${chargeDto.customLink}` : null;
+//       const transactionId = `flick-${crypto.randomUUID()}`;
+//       const access_code = crypto.randomBytes(5).toString('hex');
+//       const charges = Math.round(chargeDto.amount * 0.0135);
+//       const amountPayable = chargeDto.amount;
+//       const nairaEquivalent = chargeDto.currency === 'NGN' ? amountPayable : amountPayable * 1;
+//       const paymentUrl = `https://checkout.paywithflick.co/pages/${access_code}`;
+//       const custompaymentUrl = chargeDto.customLink ? `https://checkout.paywithflick.co/pages/${chargeDto.customLink}` : null;
   
-      const wallet = account.wallet;
-      const transactions = wallet.transactions || [];
-      let payoutBalance = 0;
-      transactions.forEach(tx => {
-        if (!['completed', 'success'].includes(tx.status)) return;
-        const amount = parseFloat(tx.settled_amount.toString());
-        if (isNaN(amount)) {
-          console.warn(`Invalid settled_amount for transaction ${tx.transactionid}: ${tx.settled_amount}`);
-          return;
-        }
-        if (tx.type === 'Inflow' && tx.eventname !== 'Fund API Balance') {
-          payoutBalance += amount;
-        } else if (tx.type === 'Outflow') {
-          payoutBalance -= amount;
-        }
-      });
+//       const wallet = account.wallet;
+//       const transactions = wallet.transactions || [];
+//       let payoutBalance = 0;
+//       transactions.forEach(tx => {
+//         if (!['completed', 'success'].includes(tx.status)) return;
+//         const amount = parseFloat(tx.settled_amount.toString());
+//         if (isNaN(amount)) {
+//           console.warn(`Invalid settled_amount for transaction ${tx.transactionid}: ${tx.settled_amount}`);
+//           return;
+//         }
+//         if (tx.type === 'Inflow' && tx.eventname !== 'Fund API Balance') {
+//           payoutBalance += amount;
+//         } else if (tx.type === 'Outflow') {
+//           payoutBalance -= amount;
+//         }
+//       });
       
 
-      if (!account.wallet?.id) {
-  throw new Error('Wallet is missing or not properly loaded');
-}
-console.log('Using wallet ID:', account.wallet.id);
+//       if (!account.wallet?.id) {
+//   throw new Error('Wallet is missing or not properly loaded');
+// }
+// console.log('Using wallet ID:', account.wallet.id);
   
-      const transaction = this.transactionRepository.create({
-        eventname: 'Charge',
-        transtype: 'credit',
-        total_amount: chargeDto.amount + charges,
-        settled_amount: amountPayable,
-        fee_charged: charges,
-        currency_settled: chargeDto.currency,
-        dated: new Date(),
-        status: 'success',
-        initiator: user.email,
-        type: 'Inflow',
-        transactionid: transactionId,
-        narration: chargeDto.description || 'Charge initiated',
-        balance_before: payoutBalance,
-        balance_after: payoutBalance,
-        channel: 'card',
-        beneficiary_bank: null,
-        email: user.email,
-        wallet: account.wallet,
-      });
+//       const transaction = this.transactionRepository.create({
+//         eventname: 'Charge',
+//         transtype: 'credit',
+//         total_amount: chargeDto.amount + charges,
+//         settled_amount: amountPayable,
+//         fee_charged: charges,
+//         currency_settled: chargeDto.currency,
+//         dated: new Date(),
+//         status: 'success',
+//         initiator: user.email,
+//         type: 'Inflow',
+//         transactionid: transactionId,
+//         narration: chargeDto.description || 'Charge initiated',
+//         balance_before: payoutBalance,
+//         balance_after: payoutBalance,
+//         channel: 'card',
+//         beneficiary_bank: null,
+//         email: user.email,
+//         wallet: account.wallet,
+//       });
   
-      await this.transactionRepository.save(transaction);
-      console.log(`Transaction created: ${transaction.transactionid} for charge`);
+//       await this.transactionRepository.save(transaction);
+//       console.log(`Transaction created: ${transaction.transactionid} for charge`);
   
-      const paymentPage = this.paymentPageRepository.create({
-        pageName: chargeDto.pageName || `Charge-${transactionId}`,
-        checkout_settings: {
-          customization: {
-            primaryColor: '#ff2600',
-            brandName: account.business_name || 'flick',
-            showLogo: false,
-            showBrandName: false,
-            secondaryColor: '#ffe8e8',
-          },
-          card: true,
-          bank_transfer: true,
-        },
-        productType: 'oneTime',
-        currency_collected: chargeDto.currency,
-        currency: chargeDto.currency,
-        access_code,
-        status: 'active',
-        source: 'dashboard',
-        isFixedAmount: !!chargeDto.amount,
-        paymentUrl,
-        currency_settled: chargeDto.currency,
-        successmsg: chargeDto.successmsg || 'Payment successful',
-        customLink: chargeDto.customLink || null,
-        dated: new Date(),
-        amount: chargeDto.amount.toString(),
-        redirectLink: chargeDto.redirectLink || null,
-        CustomerCode: String(account.businessId),
-        description: chargeDto.description || 'Charge payment',
-        custompaymentUrl,
-        account,
-      });
+//       const paymentPage = this.paymentPageRepository.create({
+//         pageName: chargeDto.pageName || `Charge-${transactionId}`,
+//         checkout_settings: {
+//           customization: {
+//             primaryColor: '#ff2600',
+//             brandName: account.business_name || 'flick',
+//             showLogo: false,
+//             showBrandName: false,
+//             secondaryColor: '#ffe8e8',
+//           },
+//           card: true,
+//           bank_transfer: true,
+//         },
+//         productType: 'oneTime',
+//         currency_collected: chargeDto.currency,
+//         currency: chargeDto.currency,
+//         access_code,
+//         status: 'active',
+//         source: 'dashboard',
+//         isFixedAmount: !!chargeDto.amount,
+//         paymentUrl,
+//         currency_settled: chargeDto.currency,
+//         successmsg: chargeDto.successmsg || 'Payment successful',
+//         customLink: chargeDto.customLink || null,
+//         dated: new Date(),
+//         amount: chargeDto.amount.toString(),
+//         redirectLink: chargeDto.redirectLink || null,
+//         CustomerCode: String(account.businessId),
+//         description: chargeDto.description || 'Charge payment',
+//         custompaymentUrl,
+//         account,
+//       });
   
-      await this.paymentPageRepository.save(paymentPage);
-      console.log(`Payment page created: ${paymentPage.access_code} for charge`);
+//       await this.paymentPageRepository.save(paymentPage);
+//       console.log(`Payment page created: ${paymentPage.access_code} for charge`);
   
-      // Update wallet balances
-      const balance = wallet.balances.find(b => b.currency === chargeDto.currency) || {
-        currency: chargeDto.currency,
-        api_balance: 0,
-        payout_balance: 0,
-        collection_balance: 0,
-      };
-      if (!wallet.balances.some(b => b.currency === chargeDto.currency)) {
-        wallet.balances.push(balance);
-        await this.walletRepository.save(wallet);
-      }
+//       // Update wallet balances
+//       const balance = wallet.balances.find(b => b.currency === chargeDto.currency) || {
+//         currency: chargeDto.currency,
+//         api_balance: 0,
+//         payout_balance: 0,
+//         collection_balance: 0,
+//       };
+//       if (!wallet.balances.some(b => b.currency === chargeDto.currency)) {
+//         wallet.balances.push(balance);
+//         await this.walletRepository.save(wallet);
+//       }
   
-      return {
-        data: {
-          transactionId,
-          url: custompaymentUrl || paymentUrl,
-          currency: chargeDto.currency,
-          currency_collected: chargeDto.currency,
-          nairaEquivalent,
-          amount: chargeDto.amount + charges,
-          charges,
-          amountPayable,
-          payableFxAmountString: `₦${amountPayable.toFixed(2)}`,
-          payableAmountString: `₦${amountPayable.toFixed(2)}`,
-          rate: 1,
-          currency_settled: chargeDto.currency,
-          access_code,
-        },
-      };
-    } catch (error) {
-      if (error instanceof HttpException) throw error;
-      console.error('Create charge error:', error);
-      throw new HttpException('Failed to create charge', HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }
-//   async createCharge(userId: string, chargeDto: CreateChargeDto) {
+//       return {
+//         data: {
+//           transactionId,
+//           url: custompaymentUrl || paymentUrl,
+//           currency: chargeDto.currency,
+//           currency_collected: chargeDto.currency,
+//           nairaEquivalent,
+//           amount: chargeDto.amount + charges,
+//           charges,
+//           amountPayable,
+//           payableFxAmountString: `₦${amountPayable.toFixed(2)}`,
+//           payableAmountString: `₦${amountPayable.toFixed(2)}`,
+//           rate: 1,
+//           currency_settled: chargeDto.currency,
+//           access_code,
+//         },
+//       };
+//     } catch (error) {
+//       if (error instanceof HttpException) throw error;
+//       console.error('Create charge error:', error);
+//       throw new HttpException('Failed to create charge', HttpStatus.INTERNAL_SERVER_ERROR);
+//     }
+//   }
+// //   async createCharge(userId: string, chargeDto: CreateChargeDto) {
 //   try {
 //     const account = await this.accountRepository.findOne({
 //       where: { id: chargeDto.accountId },
@@ -364,8 +366,310 @@ console.log('Using wallet ID:', account.wallet.id);
 // }
 
 
+// async createCharge2(userId: string, chargeDto: CreateChargeDto1) {
+//   try {
+    
+
+//     const user = await this.userRepository.findOne({ where: { id: userId } });
+//     if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+//     return "yes"
+
+// // const account = await this.accountRepository.findOne({
+// //       where: { id:  },
+// //       relations: ['wallet', 'wallet.transactions'],
+// //     });
+// //     if (!account?.wallet) {
+// //       throw new HttpException('Account or wallet not found', HttpStatus.NOT_FOUND);
+// //     }
+// //     const transactionId = `flick-${crypto.randomUUID()}`;
+// //     const accessCode = crypto.randomBytes(5).toString('hex');
+// //     const charges = Math.round(chargeDto.amount * 0.0135);
+// //     const amountPayable = chargeDto.amount;
+// //     // const nairaEquivalent = chargeDto.currency === 'NGN' ? amountPayable : amountPayable * 1;
+// //     const paymentUrl = `https://checkout.paywithflick.co/pages/${accessCode}`;
+
+// //     // Calculate payout balance
+// //     // const payoutBalance = (account.wallet.transactions || []).reduce((total, tx) => {
+// //     //   if (!['completed', 'success'].includes(tx.status)) return total;
+// //     //   const amount = parseFloat(tx.settled_amount?.toString() || '0');
+// //     //   if (isNaN(amount)) return total;
+// //     //   return tx.type === 'Inflow' && tx.eventname !== 'Fund API Balance'
+// //     //     ? total + amount
+// //     //     : tx.type === 'Outflow'
+// //     //     ? total - amount
+// //     //     : total;
+// //     // }, 0);
+
+// //     // Save transaction with pending status
+// //     const transaction = this.transactionRepository.create({
+// //       eventname: 'Charge',
+// //       transtype: 'credit',
+// //       total_amount: amountPayable + charges,
+// //       settled_amount: amountPayable,
+// //       fee_charged: charges,
+// //       currency_settled: "NGN",
+// //       dated: new Date(),
+// //       status: 'Pending', // <-- Important for TTL logic
+// //       initiator: user.email,
+// //       type: 'Pending',
+// //       transactionid: transactionId,
+// //       narration: 'Charge initiated',
+// //       balance_before: 0,
+// //       balance_after: 0,
+// //       channel: 'card',
+// //       email: user.email,
+// //       wallet: account.wallet,
+// //     });
+
+// //     await this.transactionRepository.save(transaction);
+
+// //     return {
+// //       statusCode: 200,
+// //       status: 'success',
+// //       message: 'Charge created successfully',
+// //       data: {
+// //         transactionId,
+// //         url: paymentUrl,
+// //         currency: "NGN",
+// //         currency_collected: "NGN",
+// //         nairaEquivalent: amountPayable + charges,
+// //         amount: amountPayable + charges,
+// //         charges,
+// //         amountPayable,
+// //         payableFxAmountString: `₦${amountPayable.toFixed(2)}`,
+// //         payableAmountString: `₦${amountPayable.toFixed(2)}`,
+// //         rate: 1,
+// //         currency_settled: "NGN",
+// //         // access_code: accessCode,
+// //       },
+// //     };
+//   } catch (error) {
+//     console.error('Create charge error:', error);
+//     throw error instanceof HttpException
+//       ? error
+//       : new HttpException('Failed to create charge', HttpStatus.INTERNAL_SERVER_ERROR);
+//   }
+// }
+
+async createCharge(userId: string, chargeDto: CreateChargeDto) {
+  try {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['accounts', 'accounts.wallet'],
+    });
+
+    if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+
+    const account = user.accounts[0];
+    if (!account || !account.wallet) {
+      throw new HttpException('Account or wallet not found', HttpStatus.NOT_FOUND);
+    }
+    console.log("USER :", user, "ACCOUNT :", account, "WALLET :", account.wallet)
+
+    const transactionid = `flick-${crypto.randomUUID()}`;
+    const accessCode = crypto.randomBytes(5).toString('hex');
+    const charges = Math.round(chargeDto.amount * 0.0135);
+    const amountPayable = chargeDto.amount;
+    const paymentUrl = `https://checkout.paywithflick.co/pages/${accessCode}`;
+
+    const transaction = this.transactionRepository.create({
+      eventname: 'Charge',
+      transtype: 'credit',
+      total_amount: amountPayable + charges,
+      settled_amount: amountPayable,
+      fee_charged: charges,
+      currency_settled: 'NGN',
+      dated: new Date(),
+      status: 'CardPending',
+      initiator: user.email,
+      type: 'Pending',
+      transactionid,
+      narration: 'Charge initiated',
+      balance_before: 0,
+      balance_after: 0,
+      channel: 'card',
+      email: user.email,
+      wallet: account.wallet,
+    });
+
+    await this.transactionRepository.save(transaction);
+    console.log("SAVE......:", this.transactionRepository)
+
+    return {
+      statusCode: 200,
+      status: 'success',
+      message: 'Charge created successfully',
+      data: {
+        transactionid,
+        url: paymentUrl,
+        currency: 'NGN',
+        currency_collected: 'NGN',
+        nairaEquivalent: amountPayable + charges,
+        amount: amountPayable + charges,
+        charges,
+        amountPayable,
+        payableFxAmountString: `₦${amountPayable.toFixed(2)}`,
+        payableAmountString: `₦${amountPayable.toFixed(2)}`,
+        rate: 1,
+        currency_settled: 'NGN',
+      },
+    };
+  } catch (error) {
+    console.error('Create charge error:', error);
+    throw error instanceof HttpException
+      ? error
+      : new HttpException('Failed to create charge', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+ async createCardCharge(userId: string, chargeDto: CardChargeDto) {
+    try {
+      // Fetch user with related account and wallet
+      const user = await this.userRepository.findOne({
+        where: { id: userId },
+        relations: ['accounts', 'accounts.wallet'],
+      });
+      if (!user) {
+        throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+      }
+      if (!user.accounts || user.accounts.length === 0) {
+        throw new HttpException('No account found for user', HttpStatus.NOT_FOUND);
+      }
+      if (user.accounts.length > 1) {
+        throw new HttpException('User has multiple accounts, which is not allowed', HttpStatus.BAD_REQUEST);
+      }
+
+      const account = user.accounts[0];
+      if (!account.wallet) {
+        throw new HttpException('Wallet not found for account', HttpStatus.NOT_FOUND);
+      }
+
+      let transaction: Transaction;
+      const transactionId = chargeDto.transactionId;
+
+    // Normalize received amount to currency format
+    const normalizeAmount = (value: any): string => {
+      return parseFloat(Number(value).toFixed(2)).toFixed(2); // Always returns "xx.xx"
+    };
+
+const receivedAmountStr = normalizeAmount(chargeDto.amount);
+
+      // If transactionId is provided, validate it
+      if (transactionId) {
+        transaction = await this.transactionRepository.findOne({
+          where: { transactionid: transactionId, wallet: { id: account.wallet.id } },
+          relations: ['wallet'],
+        });
+        if (!transaction) {
+          throw new HttpException('Invalid transaction ID or transaction not associated with user wallet', HttpStatus.BAD_REQUEST);
+        }
+
+        console.log("................",transaction)
+        if (transaction.status !== 'CardPending') {
+          throw new HttpException('Transaction is not in Pending', HttpStatus.BAD_REQUEST);
+        }
+
+ 
+ const expectedAmountStr = normalizeAmount(transaction.settled_amount);
+
+      if (receivedAmountStr !== expectedAmountStr) {
+        throw new HttpException(
+          `Incorrect amount. Expected ${expectedAmountStr}, received ${receivedAmountStr}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const now = new Date();
+const transactionTime = new Date(transaction.dated);
+const timeDiffMs = now.getTime() - transactionTime.getTime();
+const timeDiffMinutes = timeDiffMs / (1000 * 60);
+
+if (timeDiffMinutes > 40) {
+  throw new HttpException(
+    'The 40-minute time allocated to this payment has expired',
+    HttpStatus.BAD_REQUEST,
+  );
+}
 
 
+      } 
+      // else {
+      //   // Generate new transactionId if not provided
+      //   transactionId = `flick-${crypto.randomUUID()}`;
+      // }
+
+      // Validate card details
+      // const errors = await validate(chargeDto);
+      // if (errors.length > 0) {
+      //   throw new HttpException(
+      //     errors[0].constraints[Object.keys(errors[0].constraints)[0]],
+      //     HttpStatus.BAD_REQUEST,
+      //   );
+      // }
+
+      // Determine payment type (e.g., Visa, MasterCard)
+      const paymentType = this.encryptionUtil.determinePaymentType(chargeDto.cardNumber);
+      if (!paymentType) {
+        throw new HttpException('Invalid card number or unsupported card', HttpStatus.BAD_REQUEST);
+      }
+
+      // Encrypt card details
+      const cardDetailsString = `${chargeDto.cardNumber.replace(/\s+/g, '')}|${chargeDto.cvv}|${chargeDto.cardDate}|${chargeDto.cardName.replace(/\s+/g, '')}|${chargeDto.amount}`;
+      const encryptedCardDetails = this.encryptionUtil.encrypter(cardDetailsString);
+      if (!encryptedCardDetails) {
+        throw new HttpException('Failed to encrypt card details', HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+
+      // Calculate wallet balance
+      const walletBalance = account.wallet.balances.find(b => b.currency === "NGN")?.api_balance || 0;
+
+      // Create or update transaction
+ const amount = parseFloat(receivedAmountStr);
+    const fee = Math.round(amount * 0.0135);
+    const total = amount + fee;
+
+    if (!transaction) {
+      transaction = this.transactionRepository.create({
+        eventname: 'Fund Payout Balance',
+        transtype: 'credit',
+        total_amount: total,
+        settled_amount: amount,
+        fee_charged: fee,
+        currency_settled: "NGN",
+        dated: new Date(),
+        status: 'success',
+        initiator: user.email,
+        type: 'Inflow',
+        transactionid: transactionId,
+        narration: `Fund payout balance via card (${paymentType})`,
+        balance_before: walletBalance,
+        balance_after: walletBalance + amount,
+        channel: 'card',
+        email: user.email,
+        wallet: account.wallet,
+      });
+    } else {
+      transaction.eventname = 'Fund Payout Balance';
+      transaction.status = 'success';
+      transaction.type = 'Inflow';
+      transaction.narration = `Fund payout balance via card (${paymentType})`;
+      transaction.balance_after = walletBalance + amount;
+    }
+
+      await this.transactionRepository.save(transaction);
+      console.log(`Transaction ${transactionId} ${transactionId === chargeDto.transactionId ? 'updated' : 'created'} for card payment`);
+
+      // Return card-specific payload
+      return {
+        cardDetails: encryptedCardDetails,
+        transactionId,
+      };
+    } catch (error) {
+      console.error('Create card charge error:', error);
+      throw error instanceof HttpException
+        ? error
+        : new HttpException('Failed to create card charge', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 async getPaymentLinks(userId: string) {
   try {
     const account = await this.accountRepository.findOne({
@@ -1634,7 +1938,7 @@ async getTransactions(accountId: string) {
       };
     }
 
-    const transactions = account.wallet.transactions.map(tx => ({
+    const transactions = account.wallet.transactions.filter(tx => tx.status !== 'CardPending').map(tx => ({
       ...tx,
       dated_ago: this.getTimeAgo(tx.dated),
       total_amount: parseFloat(tx.total_amount.toString()),

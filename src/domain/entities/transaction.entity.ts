@@ -41,7 +41,7 @@ export class Transaction {
   initiator?: string;
 
   @Column()
-  type: 'Inflow' | 'Outflow';
+  type: 'Inflow' | 'Outflow'| 'Pending' | 'CardPending';
 
   @Column()
   transactionid: string;
