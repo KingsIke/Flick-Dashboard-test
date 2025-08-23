@@ -37,11 +37,30 @@ export class BusinessController {
     return await this.businessService.getBalances(req.user.sub, req.query.accountId);
   }
 
+  // @Get('transactions')
+  // @UseGuards(JwtAuthGuard)
+  // @HttpCode(HttpStatus.OK)
+  // async getTransactions(@Param('accountId') accountId: string) {
+  //   return await this.businessService.getTransactions(accountId);
+  // }
+  
   @Get('transactions/:accountId')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  async getTransactions(@Param('accountId') accountId: string) {
-    return await this.businessService.getTransactions(accountId);
+  async getTransactions1(@Param('accountId') accountId: string) {
+    return await this.businessService.getTransactions1(accountId);
+  }
+  @Get('transactions')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async getTransactions(@Request() req) {
+    return await this.businessService.getTransactions(req.user.sub);
+  }
+  @Get('account')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async getAccount(@Request() req) {
+    return await this.businessService.getAccount(req.user.sub);
   }
 
   @Get('user-info')
@@ -57,7 +76,7 @@ export class BusinessController {
   async createCharge(@Request() req, @Body() chargeDto: CreateChargeDto) {
     return this.businessService.createCharge(req.user.sub, chargeDto);
   }
-@Post('charge/card')
+@Post('charge')
  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
 async createCardCharge(@Body() cardChargeDto: CardChargeDto, @Request() req) {

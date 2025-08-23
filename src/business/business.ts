@@ -14,7 +14,6 @@ import { TokenEncryptionUtil } from '../config/utils/TokenEncryptionUtil';
 import { EncryptionUtil } from '../config/utils/EncryptionUtil';
 import { BankRepository } from '../infrastructure/repositories/bank.repository';
 import { validate } from 'class-validator';
-// import { Wallet } from '../domain/entities/wallet.entity';
 import { CountryRepository } from '../infrastructure/repositories/country.repository';
 import { BeneficiaryRepository } from '../infrastructure/repositories/beneficiary.repository';
 import { ExchangeRateService } from '../infrastructure/services/exchange-rate/exchange-rate.service';
@@ -40,416 +39,7 @@ export class BusinessService {
     private readonly exchangeRateService: ExchangeRateService,
   ) {}
 
-  
-  async addBusiness(userId: string, addBusinessDto: AddBusinessDto) {
-  try {
-  
-      const user = await this.userRepository.findOne({ where: { id: userId }, relations: ['accounts'] });
 
-    if (!user) {
-      console.error('User not found for ID:', userId);
-      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
-    }
-       if (user.accounts && user.accounts.length > 0) {
-        console.error('User already has an account:', user.accounts);
-        throw new HttpException('User can only have one account', HttpStatus.BAD_REQUEST);
-      }
-
-    const { businessId, business_name } = addBusinessDto;
-
-
-    const existingBusiness = await this.accountRepository.findOne({
-      where: [{ businessId }, { business_name }],
-    });
-    if (existingBusiness) {
-      console.error('Business with businessId or business_name already exists:', { businessId, business_name });
-      throw new HttpException(
-        `Business with businessId '${businessId}' or business_name '${business_name}' already exists`,
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-    const account = await this.accountRepository.save(
-      this.accountRepository.create({
-        ...addBusinessDto,
-        business_type: 'merchant',
-        currency: addBusinessDto.currencies?.[0],
-        users: [user],
-      })
-    );
-    console.log('3: Created account with ID:', account.id);
-
-    const initialFundingAmount = 1000;
-    const selectedCurrencies = addBusinessDto.currencies || [];
-
-    const balances = selectedCurrencies.map(currency => ({
-      currency,
-      api_balance: 0,
-      payout_balance: initialFundingAmount,
-      collection_balance: initialFundingAmount,
-    }));
-
-    const wallet = this.walletRepository.create({
-      account,
-      account_id: account.id,
-      balances,
-    });
-    console.log('4: Created wallet with initial balances:', JSON.stringify(wallet.balances));
-
-    await this.walletRepository.save(wallet);
-    console.log('5: Saved wallet with ID:', wallet.id);
-
-    // Create initial funding transactions for each currency
-    for (const balance of balances) {
-      const transactionId = `flick-${crypto.randomUUID()}`;
-      const initialFunding = this.transactionRepository.create({
-        eventname: `Initial Funding ${balance.currency}`,
-        transtype: 'credit',
-        total_amount: balance.collection_balance,
-        settled_amount: balance.collection_balance,
-        fee_charged: 0,
-        currency_settled: balance.currency,
-        dated: new Date(),
-        status: 'success',
-        initiator: user.email,
-        type: 'Inflow',
-        transactionid: transactionId,
-        narration: `Initial wallet funding for ${balance.currency} on signup`,
-        balance_before: 0,
-        balance_after: balance.collection_balance,
-        channel: 'system',
-        email: user.email,
-        wallet,
-      });
-      console.log(`6: Created initial funding transaction for ${balance.currency}:`, transactionId);
-      await this.transactionRepository.save(initialFunding);
-    }
-
-    console.log('7: Business added successfully');
-    return { message: 'Business added successfully', accountId: account.id,wallet_id: wallet.id };
-  } catch (error) {
-    console.error('Add business error:', error);
-    if (error instanceof HttpException) throw error;
-
-    throw new HttpException(
-      error.message || 'Failed to add business',
-      error.status || HttpStatus.INTERNAL_SERVER_ERROR,
-    );
-  }
-}
-//   async createCharge1(userId: string, chargeDto: CreateChargeDto) {
-//     try {
-//       const account = await this.accountRepository.findOne({
-//         where: { id: chargeDto.accountId },
-//         relations: ['wallet', 'wallet.transactions'],
-//       });
-//       if (!account) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
-  
-//       if (!account.wallet) {
-//         console.warn(`Account ${account.id} (businessId: ${account.businessId}) has no wallet`);
-//         throw new HttpException('Cannot create charge: Account has no wallet', HttpStatus.BAD_REQUEST);
-//       }
-  
-//       const user = await this.userRepository.findOne({ where: { id: userId } });
-//       if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
-  
-//       const transactionId = `flick-${crypto.randomUUID()}`;
-//       const access_code = crypto.randomBytes(5).toString('hex');
-//       const charges = Math.round(chargeDto.amount * 0.0135);
-//       const amountPayable = chargeDto.amount;
-//       const nairaEquivalent = chargeDto.currency === 'NGN' ? amountPayable : amountPayable * 1;
-//       const paymentUrl = `https://checkout.paywithflick.co/pages/${access_code}`;
-//       const custompaymentUrl = chargeDto.customLink ? `https://checkout.paywithflick.co/pages/${chargeDto.customLink}` : null;
-  
-//       const wallet = account.wallet;
-//       const transactions = wallet.transactions || [];
-//       let payoutBalance = 0;
-//       transactions.forEach(tx => {
-//         if (!['completed', 'success'].includes(tx.status)) return;
-//         const amount = parseFloat(tx.settled_amount.toString());
-//         if (isNaN(amount)) {
-//           console.warn(`Invalid settled_amount for transaction ${tx.transactionid}: ${tx.settled_amount}`);
-//           return;
-//         }
-//         if (tx.type === 'Inflow' && tx.eventname !== 'Fund API Balance') {
-//           payoutBalance += amount;
-//         } else if (tx.type === 'Outflow') {
-//           payoutBalance -= amount;
-//         }
-//       });
-      
-
-//       if (!account.wallet?.id) {
-//   throw new Error('Wallet is missing or not properly loaded');
-// }
-// console.log('Using wallet ID:', account.wallet.id);
-  
-//       const transaction = this.transactionRepository.create({
-//         eventname: 'Charge',
-//         transtype: 'credit',
-//         total_amount: chargeDto.amount + charges,
-//         settled_amount: amountPayable,
-//         fee_charged: charges,
-//         currency_settled: chargeDto.currency,
-//         dated: new Date(),
-//         status: 'success',
-//         initiator: user.email,
-//         type: 'Inflow',
-//         transactionid: transactionId,
-//         narration: chargeDto.description || 'Charge initiated',
-//         balance_before: payoutBalance,
-//         balance_after: payoutBalance,
-//         channel: 'card',
-//         beneficiary_bank: null,
-//         email: user.email,
-//         wallet: account.wallet,
-//       });
-  
-//       await this.transactionRepository.save(transaction);
-//       console.log(`Transaction created: ${transaction.transactionid} for charge`);
-  
-//       const paymentPage = this.paymentPageRepository.create({
-//         pageName: chargeDto.pageName || `Charge-${transactionId}`,
-//         checkout_settings: {
-//           customization: {
-//             primaryColor: '#ff2600',
-//             brandName: account.business_name || 'flick',
-//             showLogo: false,
-//             showBrandName: false,
-//             secondaryColor: '#ffe8e8',
-//           },
-//           card: true,
-//           bank_transfer: true,
-//         },
-//         productType: 'oneTime',
-//         currency_collected: chargeDto.currency,
-//         currency: chargeDto.currency,
-//         access_code,
-//         status: 'active',
-//         source: 'dashboard',
-//         isFixedAmount: !!chargeDto.amount,
-//         paymentUrl,
-//         currency_settled: chargeDto.currency,
-//         successmsg: chargeDto.successmsg || 'Payment successful',
-//         customLink: chargeDto.customLink || null,
-//         dated: new Date(),
-//         amount: chargeDto.amount.toString(),
-//         redirectLink: chargeDto.redirectLink || null,
-//         CustomerCode: String(account.businessId),
-//         description: chargeDto.description || 'Charge payment',
-//         custompaymentUrl,
-//         account,
-//       });
-  
-//       await this.paymentPageRepository.save(paymentPage);
-//       console.log(`Payment page created: ${paymentPage.access_code} for charge`);
-  
-//       // Update wallet balances
-//       const balance = wallet.balances.find(b => b.currency === chargeDto.currency) || {
-//         currency: chargeDto.currency,
-//         api_balance: 0,
-//         payout_balance: 0,
-//         collection_balance: 0,
-//       };
-//       if (!wallet.balances.some(b => b.currency === chargeDto.currency)) {
-//         wallet.balances.push(balance);
-//         await this.walletRepository.save(wallet);
-//       }
-  
-//       return {
-//         data: {
-//           transactionId,
-//           url: custompaymentUrl || paymentUrl,
-//           currency: chargeDto.currency,
-//           currency_collected: chargeDto.currency,
-//           nairaEquivalent,
-//           amount: chargeDto.amount + charges,
-//           charges,
-//           amountPayable,
-//           payableFxAmountString: `₦${amountPayable.toFixed(2)}`,
-//           payableAmountString: `₦${amountPayable.toFixed(2)}`,
-//           rate: 1,
-//           currency_settled: chargeDto.currency,
-//           access_code,
-//         },
-//       };
-//     } catch (error) {
-//       if (error instanceof HttpException) throw error;
-//       console.error('Create charge error:', error);
-//       throw new HttpException('Failed to create charge', HttpStatus.INTERNAL_SERVER_ERROR);
-//     }
-//   }
-// //   async createCharge(userId: string, chargeDto: CreateChargeDto) {
-//   try {
-//     const account = await this.accountRepository.findOne({
-//       where: { id: chargeDto.accountId },
-//       relations: ['wallet', 'wallet.transactions'],
-//     });
-//     if (!account) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
-
-//     if (!account.wallet) {
-//       console.warn(`Account ${account.id} (businessId: ${account.businessId}) has no wallet`);
-//       throw new HttpException('Cannot create charge: Account has no wallet', HttpStatus.BAD_REQUEST);
-//     }
-
-//     const user = await this.userRepository.findOne({ where: { id: userId } });
-//     if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
-
-//     const transactionId = `flick-${crypto.randomUUID()}`;
-//     const charges = Math.round(chargeDto.amount * 0.0135);
-//     const amountPayable = chargeDto.amount;
-//     const nairaEquivalent = chargeDto.currency === 'NGN' ? amountPayable : amountPayable * 1; // Adjust for forex if needed
-//     const paymentUrl = `https://checkout.paywithflick.co/pages/${crypto.randomBytes(5).toString('hex')}`;
-
-//     const wallet = account.wallet;
-//     // Calculate payout_balance similar to getBalances
-//     const transactions = wallet.transactions || [];
-//     let payoutBalance = 0;
-//     transactions.forEach(tx => {
-//       if (!['completed', 'success'].includes(tx.status)) return;
-//       const amount = parseFloat(tx.settled_amount.toString());
-//       if (isNaN(amount)) {
-//         console.warn(`Invalid settled_amount for transaction ${tx.transactionid}: ${tx.settled_amount}`);
-//         return;
-//       }
-//       if (tx.type === 'Inflow' && tx.eventname !== 'Fund API Balance') {
-//         payoutBalance += amount;
-//       } else if (tx.type === 'Outflow') {
-//         payoutBalance -= amount;
-//       }
-//     });
-
-//     const transaction = this.transactionRepository.create({
-//       eventname: 'Charge',
-//       transtype: 'credit',
-//       total_amount: chargeDto.amount + charges,
-//       settled_amount: amountPayable,
-//       fee_charged: charges,
-//       currency_settled: chargeDto.currency,
-//       dated: new Date(),
-//       status: 'pending',
-//       initiator: user.email,
-//       type: 'Inflow',
-//       transactionid: transactionId,
-//       narration: 'Charge initiated',
-//       balance_before: payoutBalance,
-//       balance_after: payoutBalance, // Pending transactions don't update balance
-//       channel: 'card',
-//       beneficiary_bank: null,
-//       email: user.email,
-//       wallet,
-//     });
-
-//     await this.transactionRepository.save(transaction);
-//     console.log(`Transaction created: ${transaction.transactionid} for charge`);
-
-//     return {
-//       data: {
-//         transactionId,
-//         url: paymentUrl,
-//         currency: chargeDto.currency,
-//         currency_collected: chargeDto.currency,
-//         nairaEquivalent,
-//         amount: chargeDto.amount + charges,
-//         charges,
-//         amountPayable,
-//         payableFxAmountString: `₦${amountPayable.toFixed(2)}`,
-//         payableAmountString: `₦${amountPayable.toFixed(2)}`,
-//         rate: 1,
-//         currency_settled: chargeDto.currency,
-//       },
-//     };
-//   } catch (error) {
-//     if (error instanceof HttpException) throw error;
-//     console.error('Create charge error:', error);
-//     throw new HttpException('Failed to create charge', HttpStatus.INTERNAL_SERVER_ERROR);
-//   }
-// }
-
-
-// async createCharge2(userId: string, chargeDto: CreateChargeDto1) {
-//   try {
-    
-
-//     const user = await this.userRepository.findOne({ where: { id: userId } });
-//     if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
-//     return "yes"
-
-// // const account = await this.accountRepository.findOne({
-// //       where: { id:  },
-// //       relations: ['wallet', 'wallet.transactions'],
-// //     });
-// //     if (!account?.wallet) {
-// //       throw new HttpException('Account or wallet not found', HttpStatus.NOT_FOUND);
-// //     }
-// //     const transactionId = `flick-${crypto.randomUUID()}`;
-// //     const accessCode = crypto.randomBytes(5).toString('hex');
-// //     const charges = Math.round(chargeDto.amount * 0.0135);
-// //     const amountPayable = chargeDto.amount;
-// //     // const nairaEquivalent = chargeDto.currency === 'NGN' ? amountPayable : amountPayable * 1;
-// //     const paymentUrl = `https://checkout.paywithflick.co/pages/${accessCode}`;
-
-// //     // Calculate payout balance
-// //     // const payoutBalance = (account.wallet.transactions || []).reduce((total, tx) => {
-// //     //   if (!['completed', 'success'].includes(tx.status)) return total;
-// //     //   const amount = parseFloat(tx.settled_amount?.toString() || '0');
-// //     //   if (isNaN(amount)) return total;
-// //     //   return tx.type === 'Inflow' && tx.eventname !== 'Fund API Balance'
-// //     //     ? total + amount
-// //     //     : tx.type === 'Outflow'
-// //     //     ? total - amount
-// //     //     : total;
-// //     // }, 0);
-
-// //     // Save transaction with pending status
-// //     const transaction = this.transactionRepository.create({
-// //       eventname: 'Charge',
-// //       transtype: 'credit',
-// //       total_amount: amountPayable + charges,
-// //       settled_amount: amountPayable,
-// //       fee_charged: charges,
-// //       currency_settled: "NGN",
-// //       dated: new Date(),
-// //       status: 'Pending', // <-- Important for TTL logic
-// //       initiator: user.email,
-// //       type: 'Pending',
-// //       transactionid: transactionId,
-// //       narration: 'Charge initiated',
-// //       balance_before: 0,
-// //       balance_after: 0,
-// //       channel: 'card',
-// //       email: user.email,
-// //       wallet: account.wallet,
-// //     });
-
-// //     await this.transactionRepository.save(transaction);
-
-// //     return {
-// //       statusCode: 200,
-// //       status: 'success',
-// //       message: 'Charge created successfully',
-// //       data: {
-// //         transactionId,
-// //         url: paymentUrl,
-// //         currency: "NGN",
-// //         currency_collected: "NGN",
-// //         nairaEquivalent: amountPayable + charges,
-// //         amount: amountPayable + charges,
-// //         charges,
-// //         amountPayable,
-// //         payableFxAmountString: `₦${amountPayable.toFixed(2)}`,
-// //         payableAmountString: `₦${amountPayable.toFixed(2)}`,
-// //         rate: 1,
-// //         currency_settled: "NGN",
-// //         // access_code: accessCode,
-// //       },
-// //     };
-//   } catch (error) {
-//     console.error('Create charge error:', error);
-//     throw error instanceof HttpException
-//       ? error
-//       : new HttpException('Failed to create charge', HttpStatus.INTERNAL_SERVER_ERROR);
-//   }
-// }
 
 async createCharge(userId: string, chargeDto: CreateChargeDto) {
   try {
@@ -521,56 +111,55 @@ async createCharge(userId: string, chargeDto: CreateChargeDto) {
       : new HttpException('Failed to create charge', HttpStatus.INTERNAL_SERVER_ERROR);
   }
 }
- async createCardCharge(userId: string, chargeDto: CardChargeDto) {
-    try {
-      // Fetch user with related account and wallet
-      const user = await this.userRepository.findOne({
-        where: { id: userId },
-        relations: ['accounts', 'accounts.wallet'],
-      });
-      if (!user) {
-        throw new HttpException('User not found', HttpStatus.NOT_FOUND);
-      }
-      if (!user.accounts || user.accounts.length === 0) {
-        throw new HttpException('No account found for user', HttpStatus.NOT_FOUND);
-      }
-      if (user.accounts.length > 1) {
-        throw new HttpException('User has multiple accounts, which is not allowed', HttpStatus.BAD_REQUEST);
-      }
 
-      const account = user.accounts[0];
-      if (!account.wallet) {
-        throw new HttpException('Wallet not found for account', HttpStatus.NOT_FOUND);
-      }
+async createCardCharge(userId: string, chargeDto: CardChargeDto) {
+  try {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['accounts', 'accounts.wallet'],
+    });
 
-      let transaction: Transaction;
-      const transactionId = chargeDto.transactionId;
+    if (!user) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
 
-    // Normalize received amount to currency format
+    if (!user.accounts || user.accounts.length === 0) {
+      throw new HttpException('No account found for user', HttpStatus.NOT_FOUND);
+    }
+
+    if (user.accounts.length > 1) {
+      throw new HttpException('User has multiple accounts, which is not allowed', HttpStatus.BAD_REQUEST);
+    }
+
+    const account = user.accounts[0];
+    if (!account.wallet) {
+      throw new HttpException('Wallet not found for account', HttpStatus.NOT_FOUND);
+    }
+
+    let transaction: Transaction;
+    const transactionId = chargeDto.transactionId;
+
     const normalizeAmount = (value: any): string => {
-      return parseFloat(Number(value).toFixed(2)).toFixed(2); // Always returns "xx.xx"
+      return parseFloat(Number(value).toFixed(2)).toFixed(2);
     };
 
-const receivedAmountStr = normalizeAmount(chargeDto.amount);
+    const receivedAmountStr = normalizeAmount(chargeDto.amount);
 
-      // If transactionId is provided, validate it
-      if (transactionId) {
-        transaction = await this.transactionRepository.findOne({
-          where: { transactionid: transactionId, wallet: { id: account.wallet.id } },
-          relations: ['wallet'],
-        });
-        if (!transaction) {
-          throw new HttpException('Invalid transaction ID or transaction not associated with user wallet', HttpStatus.BAD_REQUEST);
-        }
+    if (transactionId) {
+      transaction = await this.transactionRepository.findOne({
+        where: { transactionid: transactionId, wallet: { id: account.wallet.id } },
+        relations: ['wallet'],
+      });
 
-        console.log("................",transaction)
-        if (transaction.status !== 'CardPending') {
-          throw new HttpException('Transaction is not in Pending', HttpStatus.BAD_REQUEST);
-        }
+      if (!transaction) {
+        throw new HttpException('Invalid transaction ID or transaction not associated with user wallet', HttpStatus.BAD_REQUEST);
+      }
 
- 
- const expectedAmountStr = normalizeAmount(transaction.settled_amount);
+      if (transaction.status !== 'CardPending') {
+        throw new HttpException('Transaction is not in Pending', HttpStatus.BAD_REQUEST);
+      }
 
+      const expectedAmountStr = normalizeAmount(transaction.settled_amount);
       if (receivedAmountStr !== expectedAmountStr) {
         throw new HttpException(
           `Incorrect amount. Expected ${expectedAmountStr}, received ${receivedAmountStr}`,
@@ -579,97 +168,77 @@ const receivedAmountStr = normalizeAmount(chargeDto.amount);
       }
 
       const now = new Date();
-const transactionTime = new Date(transaction.dated);
-const timeDiffMs = now.getTime() - transactionTime.getTime();
-const timeDiffMinutes = timeDiffMs / (1000 * 60);
+      const transactionTime = new Date(transaction.dated);
+      const timeDiffMs = now.getTime() - transactionTime.getTime();
+      const timeDiffMinutes = timeDiffMs / (1000 * 60);
 
-if (timeDiffMinutes > 40) {
-  throw new HttpException(
-    'The 40-minute time allocated to this payment has expired',
-    HttpStatus.BAD_REQUEST,
-  );
-}
-
-
-      } 
-      // else {
-      //   // Generate new transactionId if not provided
-      //   transactionId = `flick-${crypto.randomUUID()}`;
-      // }
-
-      // Validate card details
-      // const errors = await validate(chargeDto);
-      // if (errors.length > 0) {
-      //   throw new HttpException(
-      //     errors[0].constraints[Object.keys(errors[0].constraints)[0]],
-      //     HttpStatus.BAD_REQUEST,
-      //   );
-      // }
-
-      // Determine payment type (e.g., Visa, MasterCard)
-      const paymentType = this.encryptionUtil.determinePaymentType(chargeDto.cardNumber);
-      if (!paymentType) {
-        throw new HttpException('Invalid card number or unsupported card', HttpStatus.BAD_REQUEST);
+      if (timeDiffMinutes > 40) {
+        throw new HttpException(
+          'The 40-minute time allocated to this payment has expired',
+          HttpStatus.BAD_REQUEST,
+        );
       }
+    }
 
-      // Encrypt card details
-      const cardDetailsString = `${chargeDto.cardNumber.replace(/\s+/g, '')}|${chargeDto.cvv}|${chargeDto.cardDate}|${chargeDto.cardName.replace(/\s+/g, '')}|${chargeDto.amount}`;
-      const encryptedCardDetails = this.encryptionUtil.encrypter(cardDetailsString);
-      if (!encryptedCardDetails) {
-        throw new HttpException('Failed to encrypt card details', HttpStatus.INTERNAL_SERVER_ERROR);
-      }
+    const paymentType = this.encryptionUtil.determinePaymentType(chargeDto.cardNumber);
+    if (!paymentType) {
+      throw new HttpException('Invalid card number or unsupported card', HttpStatus.BAD_REQUEST);
+    }
 
-      // Calculate wallet balance
-      const walletBalance = account.wallet.balances.find(b => b.currency === "NGN")?.api_balance || 0;
+    const cardDetailsString = `${chargeDto.cardNumber.replace(/\s+/g, '')}|${chargeDto.cvv}|${chargeDto.cardDate}|${chargeDto.cardName.replace(/\s+/g, '')}|${chargeDto.amount}`;
+    const encryptedCardDetails = this.encryptionUtil.encrypter(cardDetailsString);
+    if (!encryptedCardDetails) {
+      throw new HttpException('Failed to encrypt card details', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
 
-      // Create or update transaction
- const amount = parseFloat(receivedAmountStr);
+    const amount = parseFloat(receivedAmountStr);
     const fee = Math.round(amount * 0.0135);
-    const total = amount + fee;
+    const total = amount - fee;
 
-    if (!transaction) {
-      transaction = this.transactionRepository.create({
-        eventname: 'Fund Payout Balance',
-        transtype: 'credit',
-        total_amount: total,
-        settled_amount: amount,
-        fee_charged: fee,
-        currency_settled: "NGN",
-        dated: new Date(),
-        status: 'success',
-        initiator: user.email,
-        type: 'Inflow',
-        transactionid: transactionId,
-        narration: `Fund payout balance via card (${paymentType})`,
-        balance_before: walletBalance,
-        balance_after: walletBalance + amount,
-        channel: 'card',
-        email: user.email,
-        wallet: account.wallet,
-      });
-    } else {
+    const currency = transaction?.currency_settled || 'NGN';
+
+
+    if (transaction) {
+
+      
+    let targetBalance = account.wallet.balances.find(b => b.currency === currency);
+    if (!targetBalance) {
+      targetBalance = {
+        currency,
+        api_balance: 0,
+        payout_balance: 0,
+        collection_balance: 0,
+      };
+      account.wallet.balances.push(targetBalance);
+    }
+
+    targetBalance.payout_balance += amount;
+    targetBalance.collection_balance += amount;
+
+    await this.walletRepository.save(account.wallet);
       transaction.eventname = 'Fund Payout Balance';
       transaction.status = 'success';
       transaction.type = 'Inflow';
       transaction.narration = `Fund payout balance via card (${paymentType})`;
-      transaction.balance_after = walletBalance + amount;
+      transaction.balance_before = targetBalance.payout_balance - amount;
+      transaction.balance_after = targetBalance.payout_balance;
     }
 
-      await this.transactionRepository.save(transaction);
-      console.log(`Transaction ${transactionId} ${transactionId === chargeDto.transactionId ? 'updated' : 'created'} for card payment`);
+    await this.transactionRepository.save(transaction);
+    console.log(`Transaction ${transactionId} ${transactionId === chargeDto.transactionId ? 'updated' : 'created'} for card payment`);
 
-      // Return card-specific payload
-      return {
-        cardDetails: encryptedCardDetails,
-        transactionId,
-      };
-    } catch (error) {
-      console.error('Create card charge error:', error);
-      throw error instanceof HttpException
-        ? error
-        : new HttpException('Failed to create card charge', HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return {
+      cardDetails: encryptedCardDetails,
+      transactionId,
+    };
+  } catch (error) {
+    console.error('Create card charge error:', error);
+    throw error instanceof HttpException
+      ? error
+      : new HttpException('Failed to create card charge', HttpStatus.INTERNAL_SERVER_ERROR);
   }
+}
+
 async getPaymentLinks(userId: string) {
   try {
     const account = await this.accountRepository.findOne({
@@ -1124,333 +693,7 @@ async getPaymentLinks(userId: string) {
     );
   }
 }
-  //  async getBalances(userId: string) {
-  //   try {
-  //     const user = await this.userRepository.findOne({ where: { id: userId }, relations: ['accounts', 'accounts.wallet', 'accounts.wallet.transactions'] });
-  //     if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
 
-  //     const balances = user.accounts.flatMap(account => {
-  //       if (!account.wallet) {
-  //         console.warn(`Account ${account.id} (businessId: ${account.businessId}) has no wallet`);
-  //         return [];
-  //       }
-
-  //       const transactions = account.wallet.transactions || [];
-  //       const balancesByCurrency = {};
-
-  //       transactions.forEach(tx => {
-  //         if (!['completed', 'success'].includes(tx.status)) return;
-  //         const currency = tx.currency_settled;
-  //         if (!balancesByCurrency[currency]) {
-  //           balancesByCurrency[currency] = {
-  //             currency,
-  //             collection_balance: 0,
-  //             payout_balance: 0,
-  //             api_balance: 0,
-  //           };
-  //         }
-
-  //         const amount = parseFloat(tx.settled_amount.toString());
-  //         if (isNaN(amount)) {
-  //           console.warn(`Invalid settled_amount for transaction ${tx.transactionid}: ${tx.settled_amount}`);
-  //           return;
-  //         }
-
-  //         if (tx.type === 'Inflow' && tx.eventname !== 'Fund API Balance') {
-  //           balancesByCurrency[currency].collection_balance += amount;
-  //           balancesByCurrency[currency].payout_balance += amount;
-  //         } else if (tx.type === 'Outflow') {
-  //           balancesByCurrency[currency].payout_balance -= amount;
-  //         } else if (tx.eventname === 'Fund API Balance') {
-  //           balancesByCurrency[currency].api_balance += amount;
-  //         }
-  //       });
-
-  //       return Object.values(balancesByCurrency);
-  //     });
-
-  //     return { data: balances };
-  //   } catch (error) {
-  //     if (error instanceof HttpException) throw error;
-  //     console.error('Get balances error:', error);
-  //     throw new HttpException('Failed to retrieve balances', HttpStatus.INTERNAL_SERVER_ERROR);
-  //   }
-  // }
-
-  async getBalances1(userId: string) {
-    try {
-      const user = await this.userRepository.findOne({
-        where: { id: userId },
-        relations: ['accounts', 'accounts.wallet', 'accounts.wallet.transactions'],
-      });
-      if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
-  
-      const balancesByCurrency = {};
-      console.log("User are : ",user)
-      user.accounts.forEach(account => {
-        if (!account.wallet) {
-          console.warn(`Account ${account.id} (businessId: ${account.businessId}) has no wallet`);
-          return;
-        }
-  
-        const transactions = account.wallet.transactions || [];
-        transactions.forEach(tx => {
-          if (!['completed', 'success'].includes(tx.status)) return;
-          const currency = tx.currency_settled.toUpperCase();
-          if (!balancesByCurrency[currency]) {
-            balancesByCurrency[currency] = {
-              currency,
-              collection_balance: 0,
-              payout_balance: 0,
-              api_balance: 0,
-            };
-          }
-  
-          const amount = parseFloat(tx.settled_amount.toString());
-          if (isNaN(amount)) {
-            console.warn(`Invalid settled_amount for transaction ${tx.transactionid}: ${tx.settled_amount}`);
-            return;
-          }
-  
-          if (tx.type === 'Inflow' && tx.eventname !== 'Fund API Balance') {
-            balancesByCurrency[currency].collection_balance += amount;
-            balancesByCurrency[currency].payout_balance += amount;
-          } else if (tx.type === 'Outflow') {
-            balancesByCurrency[currency].payout_balance -= amount;
-          } else if (tx.eventname === 'Fund API Balance') {
-            balancesByCurrency[currency].api_balance += amount;
-          }
-        });
-      });
-  
-      user.accounts.forEach(account => {
-        if (account.wallet && account.wallet.balances) {
-          account.wallet.balances.forEach(balance => {
-            if (!balancesByCurrency[balance.currency]) {
-              balancesByCurrency[balance.currency] = {
-                currency: balance.currency,
-                collection_balance: 0,
-                payout_balance: 0,
-                api_balance: balance.api_balance || 0,
-              };
-            }
-          });
-        }
-      });
-  
-      return {
-        status: 200,
-        message: 'balance retrieved successfully',
-        data: Object.values(balancesByCurrency),
-      };
-    } catch (error) {
-      if (error instanceof HttpException) throw error;
-      console.error('Get balances error:', error);
-      throw new HttpException('Failed to retrieve balances', HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }
-
-  async getBalances2(userId: string) {
-  try {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-      relations: ['accounts', 'accounts.wallet', 'accounts.wallet.transactions'],
-    });
-
-    if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
-
-    const balancesByCurrency = {};
-
-    user.accounts.forEach(account => {
-      const wallet = account.wallet;
-      if (!wallet) {
-        console.warn(`Account ${account.id} (businessId: ${account.businessId}) has no wallet`);
-        return;
-      }
-
-      // Process transactions
-      const transactions = wallet.transactions || [];
-      transactions.forEach(tx => {
-        if (!['completed', 'success'].includes(tx.status)) return;
-
-        const currency = tx.currency_settled.toUpperCase(); // normalize
-        if (!balancesByCurrency[currency]) {
-          balancesByCurrency[currency] = {
-            currency,
-            collection_balance: 0,
-            payout_balance: 0,
-            api_balance: 0,
-          };
-        }
-
-        const amount = parseFloat(tx.settled_amount.toString());
-        if (isNaN(amount)) {
-          console.warn(`Invalid settled_amount for transaction ${tx.transactionid}: ${tx.settled_amount}`);
-          return;
-        }
-
-        if (tx.type === 'Inflow' && tx.eventname !== 'Fund API Balance') {
-          balancesByCurrency[currency].collection_balance += amount;
-          balancesByCurrency[currency].payout_balance += amount;
-        } else if (tx.type === 'Outflow') {
-          balancesByCurrency[currency].payout_balance -= amount;
-        } else if (tx.eventname === 'Fund API Balance') {
-          balancesByCurrency[currency].api_balance += amount;
-        }
-      });
-
-      // Merge wallet balances
-      const walletBalances = wallet.balances || [];
-      walletBalances.forEach(balance => {
-        const currency = balance.currency.toUpperCase(); // normalize
-
-        if (!balancesByCurrency[currency]) {
-          balancesByCurrency[currency] = {
-            currency,
-            collection_balance: balance.collection_balance || 0,
-            payout_balance: balance.payout_balance || 0,
-            api_balance: balance.api_balance || 0,
-          };
-        } else {
-          balancesByCurrency[currency].collection_balance += balance.collection_balance || 0;
-          balancesByCurrency[currency].payout_balance += balance.payout_balance || 0;
-          balancesByCurrency[currency].api_balance += balance.api_balance || 0;
-        }
-      });
-    });
-
-    return {
-      status: 200,
-      message: 'Balance retrieved successfully',
-      data: Object.values(balancesByCurrency),
-    };
-  } catch (error) {
-    if (error instanceof HttpException) throw error;
-    console.error('Get balances error:', error);
-    throw new HttpException('Failed to retrieve balances', HttpStatus.INTERNAL_SERVER_ERROR);
-  }
-}
-
-  async getBalances3(userId: string, accountId: string) {
-    try {
-      console.log('1: Fetching balances for userId:', userId, 'accountId:', accountId);
-      const account = await this.accountRepository.findOne({
-        where: { id: accountId, users: { id: userId } },
-        relations: ['wallet'],
-      });
-      if (!account || !account.wallet) {
-        console.error('Account or wallet not found for accountId:', accountId);
-        throw new HttpException('Account or wallet not found', HttpStatus.NOT_FOUND);
-      }
-
-      const wallet = account.wallet;
-      console.log('2: Wallet ID:', wallet.id, 'Balances:', JSON.stringify(wallet.balances));
-
-      return {
-        status: 200,
-        message: 'Balance retrieved successfully',
-        data: wallet.balances.map(balance => ({
-          currency: balance.currency,
-          collection_balance: Number(balance.collection_balance.toFixed(2)),
-          payout_balance: Number(balance.payout_balance.toFixed(2)),
-          api_balance: Number(balance.api_balance.toFixed(2)),
-        })),
-      };
-    } catch (error) {
-      console.error('Get balances error:', error);
-      throw new HttpException(
-        error.message || 'Failed to retrieve balances',
-        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
-
-    async getBalances4(userId: string, accountId: string) {
-    try {
-      console.log('1: Fetching balances for userId:', userId, 'accountId:', accountId);
-      const account = await this.accountRepository.findOne({
-        where: { id: accountId, users: { id: userId } },
-        relations: ['wallet'],
-      });
-      if (!account || !account.wallet) {
-        console.error('Account or wallet not found for accountId:', accountId);
-        throw new HttpException('Account or wallet not found', HttpStatus.NOT_FOUND);
-      }
-
-      const wallet = await this.walletRepository.findOne({ where: { id: account.wallet.id } });
-      if (!wallet) {
-        console.error('Wallet not found for walletId:', account.wallet.id);
-        throw new HttpException('Wallet not found', HttpStatus.NOT_FOUND);
-      }
-      console.log('2: Wallet ID:', wallet.id, 'Raw balances:', JSON.stringify(wallet.balances));
-
-      const balances = wallet.balances.map(balance => ({
-        currency: balance.currency,
-        collection_balance: Number(balance.collection_balance.toFixed(2)),
-        payout_balance: Number(balance.payout_balance.toFixed(2)),
-        api_balance: Number(balance.api_balance.toFixed(2)),
-      }));
-      console.log('3: Formatted balances:', JSON.stringify(balances));
-
-      return {
-        status: 200,
-        message: 'Balance retrieved successfully',
-        data: balances,
-      };
-    } catch (error) {
-      console.error('Get balances error:', error);
-      throw new HttpException(
-        error.message || 'Failed to retrieve balances',
-        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
-
-  async getBalances5(userId: string) {
-  try {
-    // Find all accounts for the user
-    const accounts = await this.accountRepository.find({
-      where: { users: { id: userId } },
-      relations: ['wallet'],
-    });
-
-    if (!accounts || accounts.length === 0) {
-      throw new HttpException('No accounts found for user', HttpStatus.NOT_FOUND);
-    }
-
-    const balancesList = [];
-
-    for (const account of accounts) {
-      const wallet = await this.walletRepository.findOne({
-        where: { id: account.wallet.id },
-      });
-
-      if (!wallet) continue;
-
-      const formatted = wallet.balances.map(balance => ({
-        wallet_id: wallet.id,
-        currency: balance.currency,
-        collection_balance: Number(balance.collection_balance.toFixed(2)),
-        payout_balance: Number(balance.payout_balance.toFixed(2)),
-        api_balance: Number(balance.api_balance.toFixed(2)),
-      }));
-
-      balancesList.push(...formatted);
-    }
-
-    return {
-      status: 200,
-      message: 'All wallet balances retrieved',
-      data: balancesList,
-    };
-  } catch (error) {
-    console.error('Get all balances error:', error);
-    throw new HttpException(
-      error.message || 'Failed to retrieve balances',
-      error.status || HttpStatus.INTERNAL_SERVER_ERROR,
-    );
-  }
-}
 
  async getBalances(userId: string, accountId: string) {
     try {
@@ -1665,263 +908,16 @@ async getPaymentLinks(userId: string) {
     }
   }
 
-  // async initiateUSDPayout(userId: string, payoutDto: USDPayoutDto) {
-  //   try {
-  //     const { amount, account_number, bank_code, beneficiary_name, currency, narration, accountId } = payoutDto;
-
-  //     const account = await this.accountRepository.findOne({ where: { id: accountId }, relations: ['wallet', 'wallet.transactions'] });
-  //     if (!account) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
-
-  //     const wallet = account.wallet;
-  //     if (!wallet) {
-  //       console.warn(`Account ${account.id} (businessId: ${account.businessId}) has no wallet`);
-  //       throw new HttpException('Cannot initiate payout: Account has no wallet', HttpStatus.BAD_REQUEST);
-  //     }
-
-  //     const user = await this.userRepository.findOne({ where: { id: userId } });
-  //     if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
-
-  //     const bank = await this.bankRepository.findOne({ where: { bank_code: bank_code } });
-  //     if (!bank) throw new HttpException('Invalid bank code', HttpStatus.BAD_REQUEST);
-
-  //     const amountNum = parseFloat(amount);
-  //     if (isNaN(amountNum) || amountNum <= 0) throw new HttpException('Invalid amount', HttpStatus.BAD_REQUEST);
-
-  //     const transactions = wallet.transactions || [];
-  //     let payoutBalance = 0;
-  //     transactions.forEach(tx => {
-  //       if (!['completed', 'success'].includes(tx.status)) return;
-  //       if (tx.type === 'Inflow' && tx.eventname !== 'Fund API Balance') {
-  //         payoutBalance += tx.settled_amount;
-  //       } else if (tx.type === 'Outflow') {
-  //         payoutBalance -= tx.settled_amount;
-  //       }
-  //     });
-
-  //     if (payoutBalance < amountNum) throw new HttpException('Insufficient payout balance', HttpStatus.BAD_REQUEST);
-
-  //     const payoutId = `Flick-${crypto.randomBytes(5).toString('hex')}`;
-  //     const otp = crypto.randomInt(100000, 999999).toString();
-  //     const otpExpiresAt = this.getOtpExpiry();
-
-  //     await this.userRepository.updateUser(user.id, {
-  //       payoutOtp: otp,
-  //       payoutOtpExpiresAt: otpExpiresAt,
-  //       pendingPayoutId: payoutId,
-  //     });
-
-  //     const transaction = this.transactionRepository.create({
-  //       eventname: 'Payout',
-  //       transtype: 'debit',
-  //       total_amount: amountNum,
-  //       settled_amount: amountNum,
-  //       fee_charged: 0,
-  //       currency_settled: currency,
-  //       dated: new Date(),
-  //       status: 'pending',
-  //       initiator: user.email,
-  //       type: 'Outflow',
-  //       transactionid: payoutId,
-  //       narration: narration,
-  //       balance_before: payoutBalance,
-  //       balance_after: payoutBalance,
-  //       channel: 'bank_transfer',
-  //       beneficiary_bank: bank.bank_name,
-  //       email: user.email,
-  //       wallet,
-  //     });
-  //     await this.transactionRepository.save(transaction);
-  //     console.log(`USD Payout transaction initiated: ${transaction.transactionid} for ${currency}`);
-
-  //     try {
-  //       await this.emailService.sendPayoutOtp(user.email, otp, {
-  //         amount: amountNum,
-  //         beneficiary_name,
-  //         bank_name: bank.bank_name,
-  //         account_number,
-  //       });
-  //     } catch (error) {
-  //       console.error(`Failed to send OTP for USD payout ${payoutId}:`, error);
-  //       console.log(`Fallback OTP for ${user.email}: ${otp}`);
-  //     }
-
-  //     return {
-  //       status: 200,
-  //       Id: payoutId,
-  //       email: user.email,
-  //       phone: user.phone,
-  //       bank_name: bank.bank_name,
-  //       message: 'Please enter the otp sent to your registered mobile number or email',
-  //     };
-  //   } catch (error) {
-  //     if (error instanceof HttpException) throw error;
-  //     console.error('Initiate USD payout error:', error);
-  //     throw new HttpException('Failed to initiate USD payout', HttpStatus.INTERNAL_SERVER_ERROR);
-  //   }
-  // }
-
-
-
-
-
-
-
-
-
-//  async addBusiness(userId: string, addBusinessDto: AddBusinessDto) {
-//     try {
-//       const user = await this.userRepository.findOne({ where: { id: userId }, relations: ['accounts'] });
-//       if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
-
-//       const existingAccount = await this.accountRepository.findByBusinessId(addBusinessDto.businessId);
-//       if (existingAccount) throw new HttpException('Business ID already exists', HttpStatus.BAD_REQUEST);
-
-//       const account = await this.accountRepository.save(
-//         this.accountRepository.create({
-//           businessId: addBusinessDto.businessId,
-//           business_name: addBusinessDto.business_name,
-//           business_type: addBusinessDto.business_type,
-//           checkout_settings: {
-//             customization: {
-//               primaryColor: '#035c22',
-//               brandName: addBusinessDto.business_name,
-//               showLogo: true,
-//               showBrandName: false,
-//               secondaryColor: '#eaeaea',
-//             },
-//             card: true,
-//             bank_transfer: true,
-//           },
-//           merchantCode: `SUB_${crypto.randomBytes(8).toString('hex')}`,
-//           superMerchantCode: `CUS_${crypto.randomBytes(8).toString('hex')}`,
-//           webhook_url: 'https://3y10e3mvk2.execute-api.us-east-2.amazonaws.com/production/hooks/test-outbound',
-//           settlementType: { settledType: 'flexible', fee: '0' },
-//           FPR: { merchant: false, customer: true },
-//           YPEM: { bankAccount: false, payoutBalance: true },
-//           users: [user],
-//           isVulaUser: false,
-//           is_identity_only: false,
-//           is_regular: true,
-//           is_otc: false,
-//           is_portco: false,
-//           is_tx: false,
-//           is_vc: false,
-//           isLive: false,
-//           dated: new Date(),
-//         }),
-//       );
-//       console.log(`Account created: ${account.id} for businessId: ${addBusinessDto.businessId}`);
-
-//       const currencies = addBusinessDto.currencies && addBusinessDto.currencies.length > 0 ? addBusinessDto.currencies : ['NGN'];
-//       const walletData: Partial<Wallet> = {
-//         balances: currencies.map(currency => ({
-//           currency,
-//           collection_balance: 0,
-//           payout_balance: 1000,
-//           api_balance: currency === 'NGN' ? 0 : undefined,
-//         })),
-//         account,
-//       };
-//       const wallet = await this.walletRepository.save(
-//         this.walletRepository.create(walletData),
-//       );
-//       console.log(`Wallet created: ${wallet.id} for account: ${account.id}`);
-
-//       const initialTransactions = [];
-//       for (const currency of currencies) {
-//         // const balance = wallet.balances.find(b => b.currency === currency);
-//         const transaction = this.transactionRepository.create({
-//           eventname: 'Initial Funding',
-//           transtype: 'credit',
-//           total_amount: 1000,
-//           settled_amount: 1000,
-//           fee_charged: 0,
-//           currency_settled: currency,
-//           dated: new Date(),
-//           status: 'success',
-//           initiator: user.email,
-//           type: 'Inflow',
-//           transactionid: `flick-${crypto.randomUUID()}`,
-//           narration: `Initial wallet funding for ${currency} for new business`,
-//           balance_before: 0,
-//           balance_after: 1000,
-//           channel: 'system',
-//           beneficiary_bank: null,
-//           email: user.email,
-//           wallet,
-//         });
-//         await this.transactionRepository.save(transaction);
-//         console.log(`Transaction created: ${transaction.transactionid} for currency: ${currency}`);
-//         initialTransactions.push({
-//           transactionid: transaction.transactionid,
-//           amount: transaction.total_amount,
-//           currency: transaction.currency_settled,
-//           status: transaction.status,
-//           dated: transaction.dated,
-//         });
-//       }
-
-//       return {
-//         message: 'Business added successfully',
-//         account: { id: account.id, businessId: account.businessId },
-//         wallet: { id: wallet.id, balances: wallet.balances },
-//         initialTransactions,
-//       };
-//     } catch (error) {
-//       if (error instanceof HttpException) throw error;
-//       console.error('Add business error:', error);
-//       throw new HttpException('Failed to add business', HttpStatus.INTERNAL_SERVER_ERROR);
-//     }
-//   }
-  
-//  async getBalances(userId: string) {
-//     try {
-//       const user = await this.userRepository.findOne({ where: { id: userId }, relations: ['accounts', 'accounts.wallet', 'accounts.wallet.transactions'] });
-//       if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
-
-//       const balances = user.accounts.flatMap(account => {
-//         if (!account.wallet) {
-//           console.warn(`Account ${account.id} (businessId: ${account.businessId}) has no wallet`);
-//           return [];
-//         }
-
-//         const transactions = account.wallet.transactions || [];
-//         const balancesByCurrency = {};
-
-//         transactions.forEach(tx => {
-//           if (tx.status !== 'completed') return;
-//           const currency = tx.currency_settled;
-//           if (!balancesByCurrency[currency]) {
-//             balancesByCurrency[currency] = {
-//               currency,
-//               collection_balance: 0,
-//               payout_balance: 0,
-//               api_balance: account.wallet.balances.find(b => b.currency === currency)?.api_balance || 0,
-//             };
-//           }
-
-//           if (tx.type === 'Inflow' && tx.eventname !== 'Fund API Balance') {
-//             balancesByCurrency[currency].collection_balance += tx.settled_amount;
-//             balancesByCurrency[currency].payout_balance += tx.settled_amount;
-//           } else if (tx.type === 'Outflow') {
-//             balancesByCurrency[currency].payout_balance -= tx.settled_amount;
-//           }
-//         });
-
-//         return Object.values(balancesByCurrency);
-//       });
-
-//       return { data: balances };
-//     } catch (error) {
-//       if (error instanceof HttpException) throw error;
-//       console.error('Get balances error:', error);
-//       throw new HttpException('Failed to retrieve balances', HttpStatus.INTERNAL_SERVER_ERROR);
-//     }
-//   }
-async getTransactions(accountId: string) {
+async getTransactions(userId: string) {
   try {
-    const account = await this.accountRepository.findOne({ where: { id: accountId }, relations: ['wallet', 'wallet.transactions'] });
-    if (!account) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
+    const account = await this.accountRepository.findOne({
+      where: { users: { id: userId } },
+      relations: ['wallet', 'wallet.transactions'],
+    });
+
+    if (!account) {
+      throw new HttpException('Account not found for user', HttpStatus.NOT_FOUND);
+    }
 
     if (!account.wallet) {
       console.warn(`Account ${account.id} (businessId: ${account.businessId}) has no wallet`);
@@ -1937,21 +933,24 @@ async getTransactions(accountId: string) {
         data: [],
       };
     }
-
-    const transactions = account.wallet.transactions.filter(tx => tx.status !== 'CardPending').map(tx => ({
-      ...tx,
-      dated_ago: this.getTimeAgo(tx.dated),
-      total_amount: parseFloat(tx.total_amount.toString()),
-      settled_amount: parseFloat(tx.settled_amount.toString()),
-      balance_before: parseFloat(tx.balance_before.toString()),
-      balance_after: parseFloat(tx.balance_after.toString()),
-    }));
+console.log("yes")
+console.log(account)
+    const transactions = account.wallet.transactions
+      // .filter(tx => tx.status !== 'CardPending')
+      .map(tx => ({
+        ...tx,
+        dated_ago: this.getTimeAgo(tx.dated),
+        total_amount: parseFloat(tx.total_amount.toString()),
+        settled_amount: parseFloat(tx.settled_amount.toString()),
+        balance_before: parseFloat(tx.balance_before.toString()),
+        balance_after: parseFloat(tx.balance_after.toString()),
+      }));
 
     return {
       message: 'All transactions fetched successfully',
       stats: {
         range: 'all time',
-        currency: 'NGN', // Adjust if multi-currency
+        currency: 'NGN',
         total_inflow_amount: transactions
           .filter(tx => tx.type === 'Inflow')
           .reduce((sum, tx) => sum + tx.total_amount, 0),
@@ -1968,51 +967,85 @@ async getTransactions(accountId: string) {
     throw new HttpException('Failed to retrieve transactions', HttpStatus.INTERNAL_SERVER_ERROR);
   }
 }
-  
-  //  async getTransactions(accountId: string) {
-  //   try {
-  //     const account = await this.accountRepository.findOne({ where: { id: accountId }, relations: ['wallet', 'wallet.transactions'] });
-  //     if (!account) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
 
-  //     if (!account.wallet) {
-  //       console.warn(`Account ${account.id} (businessId: ${account.businessId}) has no wallet`);
-  //       return {
-  //         message: 'No transactions available due to missing wallet',
-  //         stats: {
-  //           range: 'all time',
-  //           currency: 'NGN',
-  //           total_amount: 0,
-  //           transaction_no: '0',
-  //         },
-  //         data: [],
-  //       };
-  //     }
+ async getTransactions1(accountId: string) { try { const account = await this.accountRepository.findOne({ where: { id: accountId }, relations: ['wallet', 'wallet.transactions'] }); if (!account) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
+if (!account.wallet) {
+  console.warn(`Account ${account.id} (businessId: ${account.businessId}) has no wallet`);
+  return {
+    message: 'No transactions available due to missing wallet',
+    stats: {
+      range: 'all time',
+      currency: 'NGN',
+      total_inflow_amount: 0,
+      total_outflow_amount: 0,
+      total_transaction_no: '0',
+    },
+    data: [],
+  };
+}
 
-  //     const transactions = account.wallet.transactions.map(tx => ({
-  //       ...tx,
-  //       dated_ago: this.getTimeAgo(tx.dated),
-  //       total_amount: tx.total_amount.toString(),
-  //       settled_amount: tx.settled_amount.toString(),
-  //       balance_before: tx.balance_before.toString(),
-  //       balance_after: tx.balance_after.toString(),
-  //     }));
-  //     return {
-  //       message: 'collection transactions fetched successfully',
-  //       stats: {
-  //         range: 'all time',
-  //                  currency: 'NGN', // Adjust if multi-currency
+const transactions = account.wallet.transactions.filter(tx => tx.status !== 'CardPending').map(tx => ({
+  ...tx,
+  dated_ago: this.getTimeAgo(tx.dated),
+  total_amount: parseFloat(tx.total_amount.toString()),
+  settled_amount: parseFloat(tx.settled_amount.toString()),
+  balance_before: parseFloat(tx.balance_before.toString()),
+  balance_after: parseFloat(tx.balance_after.toString()),
+}));
 
-  //         total_amount: transactions.reduce((sum, tx) => sum + (tx.type === 'Inflow' ? Number(tx.total_amount) : 0), 0),
-  //         transaction_no: transactions.filter(tx => tx.type === 'Inflow').length.toString(),
-  //       },
-  //       data: transactions.filter(tx => tx.type === 'Inflow'),
-  //     };
-  //   } catch (error) {
-  //     if (error instanceof HttpException) throw error;
-  //     console.error('Get transactions error:', error);
-  //     throw new HttpException('Failed to retrieve transactions', HttpStatus.INTERNAL_SERVER_ERROR);
-  //   }
-  // }
+return {
+  message: 'All transactions fetched successfully',
+  stats: {
+    range: 'all time',
+    currency: 'NGN', // Adjust if multi-currency
+    total_inflow_amount: transactions
+      .filter(tx => tx.type === 'Inflow')
+      .reduce((sum, tx) => sum + tx.total_amount, 0),
+    total_outflow_amount: transactions
+      .filter(tx => tx.type === 'Outflow')
+      .reduce((sum, tx) => sum + tx.total_amount, 0),
+    total_transaction_no: transactions.length.toString(),
+  },
+  data: transactions,
+};
+} catch (error) { if (error instanceof HttpException) throw error; console.error('Get transactions error:', error); throw new HttpException('Failed to retrieve transactions', HttpStatus.INTERNAL_SERVER_ERROR); } } 
+
+
+async getAccount(userId: string) {
+  try {
+    const account = await this.accountRepository.findOne({
+      where: { users: { id: userId } },
+      relations: ['wallet'], // ✅ Only include actual relations
+    });
+
+    if (!account) {
+      throw new HttpException('Account not found for user', HttpStatus.NOT_FOUND);
+    }
+
+    return {
+      status: 200,
+      message: 'Account retrieved successfully',
+      data: {
+        accountId: account.id,
+        businessId: account.businessId,
+        business_name: account.business_name,
+        currency: account.currency,
+        wallet: account.wallet
+          ? {
+              walletId: account.wallet.id,
+              balances: account.wallet.balances, // ✅ This is a column, not a relation
+            }
+          : null,
+      },
+    };
+  } catch (error) {
+    console.error('Get account error:', error);
+    throw error instanceof HttpException
+      ? error
+      : new HttpException('Failed to retrieve account', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+
 
   async getUserInfo(userId: string) {
     try{
@@ -2068,106 +1101,7 @@ async getTransactions(accountId: string) {
       throw new HttpException('Failed to retrieve user info', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
-  // async createCharge(userId: string, chargeDto: CreateChargeDto) {
-  //   try {
-  //     const account = await this.accountRepository.findOne({ where: { id: chargeDto.accountId },
-  //     relations: ['wallet'], });
-  //     if (!account) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
 
-  //     if (!account.wallet) {
-  //       console.warn(`Account ${account.id} (businessId: ${account.businessId}) has no wallet`);
-  //       throw new HttpException('Cannot create charge: Account has no wallet', HttpStatus.BAD_REQUEST);
-  //     }
-
-  //     const transactionId = `flick-${crypto.randomUUID()}`;
-  //     const charges = Math.round(chargeDto.amount * 0.0135);
-  //     const amountPayable = chargeDto.amount;
-  //     const nairaEquivalent = chargeDto.currency === 'NGN' ? amountPayable : amountPayable * 1;
-  //     const paymentUrl = `https://checkout.paywithflick.co/pages/${crypto.randomBytes(5).toString('hex')}`;
-
-  //     const wallet = account.wallet;
-  //     const balance = wallet.balances.find(b => b.currency === chargeDto.currency)?.payout_balance || 0;
-
-  //     console.log("real")
-
-  //     const transaction = this.transactionRepository.create({
-  //       eventname: 'Charge',
-  //       transtype: 'credit',
-  //       total_amount: chargeDto.amount + charges,
-  //       settled_amount: amountPayable,
-  //       fee_charged: charges,
-  //       currency_settled: chargeDto.currency,
-  //       dated: new Date(),
-  //       status: 'pending',
-  //       initiator: (await this.userRepository.findOne({ where: { id: userId } })).email,
-  //       type: 'Inflow',
-  //       transactionid: transactionId,
-  //       narration: 'Charge initiated',
-  //       balance_before: balance,
-  //       balance_after: balance,
-  //       channel: 'card',
-  //       beneficiary_bank: null,
-  //       email: (await this.userRepository.findOne({ where: { id: userId } })).email,
-  //       wallet,
-  //     });
-
-  //     await this.transactionRepository.save(transaction);
-  //     console.log("hello")
-
-  //     return {
-  //       data: {
-  //         transactionId,
-  //         url: paymentUrl,
-  //         currency: chargeDto.currency,
-  //         currency_collected: chargeDto.currency,
-  //         nairaEquivalent,
-  //         amount: chargeDto.amount + charges,
-  //         charges,
-  //         amountPayable,
-  //         payableFxAmountString: `₦${amountPayable.toFixed(2)}`,
-  //         payableAmountString: `₦${amountPayable.toFixed(2)}`,
-  //         rate: 1,
-  //         currency_settled: chargeDto.currency,
-  //       },
-  //     };
-  //   } catch (error) {
-  //     if (error instanceof HttpException) throw error;
-  //     console.error('Create charge error:', error);
-  //     throw new HttpException('Failed to create charge', HttpStatus.INTERNAL_SERVER_ERROR);
-  //   }
-  // }
-
-  //   async nubanCreateMerchant(userId: string, nubanDto: NubanCreateMerchantDto) {
-  //   try {
-  //     const { accountId, bankCode, bankName, accountNumber } = nubanDto;
-
-  //     const account = await this.accountRepository.findOne({ where: { id: accountId } });
-  //     if (!account) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
-
-  //     const user = await this.userRepository.findOne({ where: { id: userId } });
-  //     if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
-
-  //     const bank = await this.bankRepository.findOne({ where: { bank_code: bankCode, bank_name: bankName } });
-  //     if (!bank) throw new HttpException('Invalid bank code or name', HttpStatus.BAD_REQUEST);
-
-  //     return {
-  //       status: 200,
-  //       message: 'successfully generated merchant nuban',
-  //       data: [
-  //         {
-  //           bank_code: bankCode,
-  //           bank_name: bankName,
-  //           account_name: `Flick ${account.business_name}`,
-  //           account_number: accountNumber,
-  //         },
-  //       ],
-  //     };
-  //   } catch (error) {
-  //     if (error instanceof HttpException) throw error;
-  //     console.error('Nuban create merchant error:', error);
-  //     throw new HttpException('Failed to generate merchant nuban', HttpStatus.INTERNAL_SERVER_ERROR);
-  //   }
-  // }
 
   async getPaymentPages(accountId: string) {
     try {

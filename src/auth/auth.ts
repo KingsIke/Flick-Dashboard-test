@@ -78,7 +78,7 @@ async signUp(signUpDto: SignUpDto & Partial<AddBusinessDto>) {
     });
     await queryRunner.manager.save(user);
 
-    await this.emailService.sendVerificationEmail(signUpDto.email, otp);
+    // await this.emailService.sendVerificationEmail(signUpDto.email, otp);
 
     const businessDto = {
       businessId: signUpDto.businessId || crypto.randomUUID(),

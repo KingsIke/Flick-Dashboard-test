@@ -13,18 +13,18 @@ import { Country } from 'src/domain/entities/country.entity';
 
 dotenv.config();
 
-// // export const typeOrmConfig: TypeOrmModuleOptions = {
-// //   type: 'postgres',
-// //   host: "localhost",
-// //   port: 5432,
-// //   username: "postgres",
-// //   password: "453622Ike",
-// //   database: "flickTest",
-// //  entities: [User, Account, Wallet, Transaction, Bank, PaymentPage,  Beneficiary, Country],
-// //   synchronize: true,
-// //   migrations: [__dirname + '/../migrations/*{.ts,.js}'],
-// //   migrationsRun: true,
-// // };*
+export const typeOrmConfig1: TypeOrmModuleOptions = {
+  type: 'postgres',
+  host: "localhost",
+  port: 5432,
+  username: "postgres",
+  password: "453622Ike",
+  database: "flickTest",
+ entities: [User, Account, Wallet, Transaction, Bank, PaymentPage,  Beneficiary, Country],
+  synchronize: true,
+  migrations: [__dirname + '/../migrations/*{.ts,.js}'],
+  migrationsRun: true,
+};
 
 
 
