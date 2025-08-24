@@ -14,7 +14,7 @@ import {
 import { AuthService } from '../auth/auth';
 import { BankService } from '../infrastructure/services/banks/bank.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { CardChargeDto, ConvertAndFundDto, CreateChargeDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanCreateMerchantDto, SaveBeneficiaryDto, USDPayoutDto } from '../application/dtos/auth.dto';
+import { CardChargeDto, ConvertAndFundDto, CreateChargeDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanCreateMerchantDto, SaveBeneficiaryDto, TransactionFilterDto, USDPayoutDto } from '../application/dtos/auth.dto';
 import { BusinessService } from './business';
 
 
@@ -44,18 +44,25 @@ export class BusinessController {
   //   return await this.businessService.getTransactions(accountId);
   // }
   
-  @Get('transactions/:accountId')
-  @UseGuards(JwtAuthGuard)
+  // @Get('transactions/:accountId')
+  // @UseGuards(JwtAuthGuard)
+  // @HttpCode(HttpStatus.OK)
+  // async getTransactions1(@Param('accountId') accountId: string) {
+  //   return await this.businessService.getTransactions1(accountId);
+  // }
+  // @Get('transactions')
+  // @UseGuards(JwtAuthGuard)
+  // @HttpCode(HttpStatus.OK)
+  // async getTransactions(@Request() req) {
+  //   return await this.businessService.getTransactions(req.user.sub);
+  // }
+
+  @Post('transactions')
+    @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  async getTransactions1(@Param('accountId') accountId: string) {
-    return await this.businessService.getTransactions1(accountId);
-  }
-  @Get('transactions')
-  @UseGuards(JwtAuthGuard)
-  @HttpCode(HttpStatus.OK)
-  async getTransactions(@Request() req) {
-    return await this.businessService.getTransactions(req.user.sub);
-  }
+async getTransactions(@Request() req, @Body() filterDto: TransactionFilterDto) {
+  return this.businessService.getTransactions(req.user.sub, filterDto);
+}
   @Get('account')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)

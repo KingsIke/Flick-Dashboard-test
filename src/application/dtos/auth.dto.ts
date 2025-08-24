@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier */
-import { ArrayMinSize, IsArray, IsBoolean, IsEmail, IsEnum, IsIn, IsNotEmpty, IsNumber, IsNumberString, IsOptional, IsString, Length, Matches, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsDateString, IsEmail, IsEnum, IsIn, IsNotEmpty, IsNumber, IsNumberString, IsOptional, IsString, Length, Matches, ValidateNested } from 'class-validator';
 import {COUNTRIES, SUPPORTED_CURRENCIES } from  "../../config/utils/countriesUtil";
 import { Type } from 'class-transformer';
 
@@ -339,6 +339,36 @@ export class CardChargeDto {
 }
 
 
+export class TransactionFilterDto {
+  @IsOptional()
+  @IsDateString({}, { message: 'startDate must be a valid ISO date string' })
+  startDate?: string;
+
+  @IsOptional()
+  @IsDateString({}, { message: 'endDate must be a valid ISO date string' })
+  endDate?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsEnum(['Complete', 'Success', 'Pending', 'Failed'], {
+    each: true,
+    message: 'status must be one of Complete | Success | Pending | Failed',
+  })
+  status?: ('Complete' | 'Success' | 'Pending' | 'Failed')[];
+
+  @IsOptional()
+  @IsArray()
+  @IsEnum(['Inflow', 'Outflow', 'Pending',], {
+    each: true,
+    message: 'type must be one of Inflow | Outflow | Pending',
+  })
+  type?: ('Inflow' | 'Outflow' | 'Pending')[];
+
+  @IsOptional()
+  @IsEnum(SUPPORTED_CURRENCIES, { message: 'Invalid currency' })
+  currency?: Currency;
+}
+
 export class CardDetailsDto {
   @IsString()
   @Length(16, 16, { message: 'Card number must be exactly 16 digits' })
@@ -361,6 +391,8 @@ export class CardDetailsDto {
   @IsNumber({}, { message: 'Amount must be a number' })
   amount: number;
 }
+
+
 
 export class FundPayoutBalanceDto {
   @IsString()

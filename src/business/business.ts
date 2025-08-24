@@ -2,7 +2,7 @@
 /* eslint-disable prettier/prettier */
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { AddBusinessDto, CardChargeDto, CardDetailsDto, ConvertAndFundDto, CreateChargeDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanCreateMerchantDto, SaveBeneficiaryDto, USDPayoutDto } from '../application/dtos/auth.dto';
+import { AddBusinessDto, CardChargeDto, CardDetailsDto, ConvertAndFundDto, CreateChargeDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanCreateMerchantDto, SaveBeneficiaryDto, TransactionFilterDto, USDPayoutDto } from '../application/dtos/auth.dto';
 import { AccountRepository } from '../infrastructure/repositories/account.repository';
 import { TransactionRepository } from '../infrastructure/repositories/transaction.repository';
 import { UserRepository } from '../infrastructure/repositories/user.repository';
@@ -908,7 +908,7 @@ async getPaymentLinks(userId: string) {
     }
   }
 
-async getTransactions(userId: string) {
+async getTransactions1(userId: string) {
   try {
     const account = await this.accountRepository.findOne({
       where: { users: { id: userId } },
@@ -936,7 +936,7 @@ async getTransactions(userId: string) {
 console.log("yes")
 console.log(account)
     const transactions = account.wallet.transactions
-      // .filter(tx => tx.status !== 'CardPending')
+      .filter(tx => tx.status !== 'CardPending')
       .map(tx => ({
         ...tx,
         dated_ago: this.getTimeAgo(tx.dated),
@@ -968,7 +968,7 @@ console.log(account)
   }
 }
 
- async getTransactions1(accountId: string) { try { const account = await this.accountRepository.findOne({ where: { id: accountId }, relations: ['wallet', 'wallet.transactions'] }); if (!account) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
+ async getTransactions2(accountId: string) { try { const account = await this.accountRepository.findOne({ where: { id: accountId }, relations: ['wallet', 'wallet.transactions'] }); if (!account) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
 if (!account.wallet) {
   console.warn(`Account ${account.id} (businessId: ${account.businessId}) has no wallet`);
   return {
@@ -1010,6 +1010,79 @@ return {
 };
 } catch (error) { if (error instanceof HttpException) throw error; console.error('Get transactions error:', error); throw new HttpException('Failed to retrieve transactions', HttpStatus.INTERNAL_SERVER_ERROR); } } 
 
+
+async getTransactions(userId: string, filterDto: TransactionFilterDto) {
+  const { startDate, endDate, status, type, currency } = filterDto;
+
+  const account = await this.accountRepository.findOne({
+    where: { users: { id: userId } },
+    relations: ['wallet', 'wallet.transactions'],
+  });
+
+  if (!account || !account.wallet) {
+    return {
+      message: 'No transactions available',
+      stats: {
+        range: 'all time',
+        currency: currency || 'NGN',
+        total_inflow_amount: 0,
+        total_outflow_amount: 0,
+        total_transaction_no: '0',
+      },
+      data: [],
+    };
+  }
+
+  let transactions = account.wallet.transactions;
+  
+  transactions = transactions.filter(tx => tx.type !== 'CardPending');
+
+
+  // Apply filters (same logic as before)
+  const start = startDate ? new Date(startDate) : new Date('2025-01-01');
+  const end = endDate ? new Date(endDate) : new Date();
+  transactions = transactions.filter(tx => tx.dated >= start && tx.dated <= end);
+
+  if (status?.length) {
+    const statusSet = new Set(status.map(s => s.toLowerCase()));
+    transactions = transactions.filter(tx => statusSet.has(tx.status.toLowerCase()));
+  }
+
+  if (type?.length) {
+    const typeSet = new Set(type);
+    transactions = transactions.filter(tx => tx.type === (typeSet.has('Inflow') ? 'Inflow' : 'Outflow'));
+  }
+
+
+  if (currency) {
+    transactions = transactions.filter(tx => tx.currency_settled?.toUpperCase() === currency.toUpperCase());
+  }
+
+  const mapped = transactions.map(tx => ({
+    ...tx,
+    dated_ago: this.getTimeAgo(tx.dated),
+    total_amount: parseFloat(tx.total_amount.toString()),
+    settled_amount: parseFloat(tx.settled_amount.toString()),
+    balance_before: parseFloat(tx.balance_before.toString()),
+    balance_after: parseFloat(tx.balance_after.toString()),
+  }));
+
+  return {
+    message: 'Filtered transactions fetched successfully',
+    stats: {
+      range: startDate && endDate ? `${startDate} to ${endDate}` : 'all time',
+      currency: currency || 'NGN',
+      total_inflow_amount: mapped
+        .filter(tx => tx.type === 'Inflow')
+        .reduce((sum, tx) => sum + tx.total_amount, 0),
+      total_outflow_amount: mapped
+        .filter(tx => tx.type === 'Outflow')
+        .reduce((sum, tx) => sum + tx.total_amount, 0),
+      total_transaction_no: mapped.length.toString(),
+    },
+    data: mapped,
+  };
+}
 
 async getAccount(userId: string) {
   try {
