@@ -357,12 +357,11 @@ export class TransactionFilterDto {
   status?: ('Complete' | 'Success' | 'Pending' | 'Failed')[];
 
   @IsOptional()
-  @IsArray()
   @IsEnum(['Inflow', 'Outflow', 'Pending',], {
     each: true,
     message: 'type must be one of Inflow | Outflow | Pending',
   })
-  type?: ('Inflow' | 'Outflow' | 'Pending')[];
+  type?: ('Inflow' | 'Outflow' | 'Pending');
 
   @IsOptional()
   @IsEnum(SUPPORTED_CURRENCIES, { message: 'Invalid currency' })

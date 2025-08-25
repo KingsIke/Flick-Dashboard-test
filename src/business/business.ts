@@ -1038,7 +1038,6 @@ async getTransactions(userId: string, filterDto: TransactionFilterDto) {
   transactions = transactions.filter(tx => tx.type !== 'CardPending');
 
 
-  // Apply filters (same logic as before)
   const start = startDate ? new Date(startDate) : new Date('2025-01-01');
   const end = endDate ? new Date(endDate) : new Date();
   transactions = transactions.filter(tx => tx.dated >= start && tx.dated <= end);
@@ -1047,11 +1046,19 @@ async getTransactions(userId: string, filterDto: TransactionFilterDto) {
     const statusSet = new Set(status.map(s => s.toLowerCase()));
     transactions = transactions.filter(tx => statusSet.has(tx.status.toLowerCase()));
   }
+//   if (status) {
+//   transactions = transactions.filter(tx => tx.status.toLowerCase() === status.toLowerCase());
+// }
 
-  if (type?.length) {
-    const typeSet = new Set(type);
-    transactions = transactions.filter(tx => tx.type === (typeSet.has('Inflow') ? 'Inflow' : 'Outflow'));
-  }
+if (type) {
+  transactions = transactions.filter(tx => tx.type === type);
+}
+
+
+  // if (type?.length) {
+  //   const typeSet = new Set(type);
+  //   transactions = transactions.filter(tx => tx.type === (typeSet.has('Inflow') ? 'Inflow' : 'Outflow'));
+  // }
 
 
   if (currency) {
