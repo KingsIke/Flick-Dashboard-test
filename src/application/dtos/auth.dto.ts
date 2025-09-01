@@ -171,9 +171,6 @@ export class LoginDto {
 }
 
 export class AddBusinessDto {
-  @IsString()
-  @IsNotEmpty()
-  businessId: string;
 
   @IsString()
   @IsNotEmpty()

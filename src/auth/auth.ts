@@ -81,7 +81,7 @@ async signUp(signUpDto: SignUpDto & Partial<AddBusinessDto>) {
     // await this.emailService.sendVerificationEmail(signUpDto.email, otp);
 
     const businessDto = {
-      businessId: signUpDto.businessId || crypto.randomUUID(),
+      // businessId: signUpDto.businessId || crypto.randomUUID(),
       business_name: `${signUpDto.business_name} Business`,
       currencies: ['NGN'],
       business_type: 'merchant',
@@ -120,14 +120,14 @@ async addBusinessTransactional(queryRunner: QueryRunner, userId: string, addBusi
   if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
   if (user.accounts?.length > 0) throw new HttpException('User can only have one account', HttpStatus.BAD_REQUEST);
 
-  const { businessId, business_name } = addBusinessDto;
+  const { business_name } = addBusinessDto;
 
   const existingBusiness = await queryRunner.manager.findOne(Account, {
-    where: [{ businessId }, { business_name }],
+    where: [{ business_name }],
   });
   if (existingBusiness) {
     throw new HttpException(
-      `Business with businessId '${businessId}' or business_name '${business_name}' already exists`,
+      `Business with business_name '${business_name}' already exists`,
       HttpStatus.BAD_REQUEST,
     );
   }
@@ -377,7 +377,6 @@ return await this.loginAfterVerification(user);
         isVerified: user.isVerified,
         isLive: user.isLive,
         business_Id: user.accounts[0]?.id,
-        businessId: user.accounts[0]?.businessId,
         business_name: user.accounts[0]?.business_name,
         business_type: user.accounts[0]?.business_type,
         checkout_settings: user.accounts[0]?.checkout_settings,
