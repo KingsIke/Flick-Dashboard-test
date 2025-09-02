@@ -62,11 +62,14 @@ ZTh/TWIcDfMtL1ceClsxwZzK+BLXZ4HWveFD7CEPObt2paywWMwGk2iKsh6OZAfn
 
 
   determinePaymentType(cardNumber: string): 'OTP' | 'PIN' | null {
-    if (cardNumber.startsWith('4111')) {
+    // if (cardNumber.startsWith('4111')) {
+    //   return 'OTP';
+    // } else if (cardNumber.startsWith('5500')) {
+    //   return 'PIN';
+    // }
+     if (cardNumber) {
       return 'OTP';
-    } else if (cardNumber.startsWith('5500')) {
-      return 'PIN';
-    }
+     }
     return null;
   }
 }

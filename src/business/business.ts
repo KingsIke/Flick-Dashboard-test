@@ -1,7 +1,8 @@
+
 /* eslint-disable prettier/prettier */
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { CardChargeDto, CardDetailsDto, ConvertAndFundDto, CreateChargeDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanCreateMerchantDto, SaveBeneficiaryDto, TransactionFilterDto, USDPayoutDto } from '../application/dtos/auth.dto';
+import { AddBusinessDto, CardChargeDto, CardDetailsDto, ConvertAndFundDto, CreateChargeDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanCreateMerchantDto, SaveBeneficiaryDto, TransactionFilterDto, USDPayoutDto } from '../application/dtos/auth.dto';
 import { AccountRepository } from '../infrastructure/repositories/account.repository';
 import { TransactionRepository } from '../infrastructure/repositories/transaction.repository';
 import { UserRepository } from '../infrastructure/repositories/user.repository';

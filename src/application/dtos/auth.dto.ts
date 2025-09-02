@@ -312,7 +312,7 @@ export class CardChargeDto {
 
   @IsString()
   @IsNotEmpty()
-  @Matches(/^\d{16}$/, { message: 'Card number must be 16 digits' })
+  @Matches(/^\d{13,16}$/, { message: 'Card number must be between 13 and 16 digits' })
   cardNumber: string;
 
   @IsString()
