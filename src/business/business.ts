@@ -1,4 +1,3 @@
-
 /* eslint-disable prettier/prettier */
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -56,7 +55,7 @@ async createCharge(userId: string, chargeDto: CreateChargeDto) {
     }
     console.log("USER :", user, "ACCOUNT :", account, "WALLET :", account.wallet)
 
-    const transactionid = `flick-${crypto.randomUUID()}`;
+    const transactionid = `flick-${chargeDto.transactionId || crypto.randomUUID()}`;
     const accessCode = crypto.randomBytes(5).toString('hex');
     const charges = Math.round(chargeDto.amount * 0.0135);
     const amountPayable = chargeDto.amount;

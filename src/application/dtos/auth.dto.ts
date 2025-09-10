@@ -297,6 +297,10 @@ export class CreateChargeDto {
   @IsNumber({ allowNaN: false, allowInfinity: false })
   @IsNotEmpty()
   amount: number;
+    @IsString()
+  @IsNotEmpty()
+
+  transactionId: string;
 }
 
 export class CardChargeDto {
