@@ -50,11 +50,11 @@ async signUp(signUpDto: SignUpDto & Partial<AddBusinessDto>) {
     if (existingUser) throw new HttpException('Email already exists', HttpStatus.BAD_REQUEST);
 
     const existingBusiness = await this.accountRepository.findOne({
-      where: [{ businessId: signUpDto.businessId }, { business_name: signUpDto.business_name }],
+      where: [{ business_name: signUpDto.business_name }],
     });
     if (existingBusiness) {
       throw new HttpException(
-        `Business with businessId '${signUpDto.businessId}' or business_name '${signUpDto.business_name}' already exists`,
+        `Business with business_name '${signUpDto.business_name}' already exists`,
         HttpStatus.BAD_REQUEST,
       );
     }

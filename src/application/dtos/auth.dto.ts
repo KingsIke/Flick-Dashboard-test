@@ -40,9 +40,9 @@ export class SignUpDto {
 
 
 
-  @IsString()
-  @IsNotEmpty()
-  businessId: string;
+  // @IsString()
+  // @IsNotEmpty()
+  // businessId: string;
 
   @IsString()
   @IsNotEmpty()
