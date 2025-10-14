@@ -38,9 +38,7 @@ export class BusinessService {
     private readonly exchangeRateService: ExchangeRateService,
   ) {}
 
-
-
-async createCharge(userId: string, chargeDto: CreateChargeDto) {
+async createCharge1(userId: string, chargeDto: CreateChargeDto) {
   try {
     const user = await this.userRepository.findOne({
       where: { id: userId },
@@ -111,7 +109,83 @@ async createCharge(userId: string, chargeDto: CreateChargeDto) {
   }
 }
 
-async createCardCharge(userId: string, chargeDto: CardChargeDto) {
+async createCharge(userId: string, chargeDto: CreateChargeDto) {
+  try {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['accounts', 'accounts.wallet'],
+    });
+
+    if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+
+    const account = user.accounts[0];
+    if (!account || !account.wallet) {
+      throw new HttpException('Account or wallet not found', HttpStatus.NOT_FOUND);
+    }
+    console.log("USER :", user, "ACCOUNT :", account, "WALLET :", account.wallet)
+
+    const transactionid = `flick-${chargeDto.transactionId || crypto.randomUUID()}`;
+    const accessCode = crypto.randomBytes(5).toString('hex');
+    const charges = Math.round(chargeDto.amount * 0.0135);
+    const amountPayable = chargeDto.amount;
+    const paymentUrl = `https://checkout.paywithflick.co/pages/${accessCode}`;
+
+     // Determine which balance to fund based on the charge type
+    const balanceType = chargeDto.balanceType || 'collection';
+
+    const transaction = this.transactionRepository.create({
+      eventname: 'Charge',
+      transtype: 'credit',
+      total_amount: amountPayable + charges,
+      settled_amount: amountPayable,
+      fee_charged: charges,
+      currency_settled: 'NGN',
+      dated: new Date(),
+      status: 'CardPending',
+      initiator: user.email,
+      type: 'Pending',
+      transactionid,
+      narration: 'Charge initiated',
+      balance_before: 0,
+      balance_after: 0,
+      channel: 'card',
+      email: user.email,
+      wallet: account.wallet,
+      balanceType: balanceType   
+    });
+
+    await this.transactionRepository.save(transaction);
+    console.log("SAVE......:", this.transactionRepository)
+
+    return {
+      statusCode: 200,
+      status: 'success',
+      message: 'Charge created successfully',
+      data: {
+        transactionid,
+        url: paymentUrl,
+        currency: 'NGN',
+        currency_collected: 'NGN',
+        nairaEquivalent: amountPayable + charges,
+        amount: amountPayable + charges,
+        charges,
+        amountPayable,
+        payableFxAmountString: `₦${amountPayable.toFixed(2)}`,
+        payableAmountString: `₦${amountPayable.toFixed(2)}`,
+        rate: 1,
+        currency_settled: 'NGN',
+        balanceType
+      },
+    };
+  } catch (error) {
+    console.error('Create charge error:', error);
+    throw error instanceof HttpException
+      ? error
+      : new HttpException('Failed to create charge', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+
+async createCardCharge1(userId: string, chargeDto: CardChargeDto) {
   try {
     const user = await this.userRepository.findOne({
       where: { id: userId },
@@ -221,6 +295,147 @@ async createCardCharge(userId: string, chargeDto: CardChargeDto) {
       transaction.narration = `Fund payout balance via card (${paymentType})`;
       transaction.balance_before = targetBalance.payout_balance - amount;
       transaction.balance_after = targetBalance.payout_balance;
+    }
+
+    await this.transactionRepository.save(transaction);
+    console.log(`Transaction ${transactionId} ${transactionId === chargeDto.transactionId ? 'updated' : 'created'} for card payment`);
+
+    return {
+      cardDetails: encryptedCardDetails,
+      transactionId,
+    };
+  } catch (error) {
+    console.error('Create card charge error:', error);
+    throw error instanceof HttpException
+      ? error
+      : new HttpException('Failed to create card charge', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+
+async createCardCharge(userId: string, chargeDto: CardChargeDto) {
+  try {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['accounts', 'accounts.wallet'],
+    });
+
+    if (!user) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    if (!user.accounts || user.accounts.length === 0) {
+      throw new HttpException('No account found for user', HttpStatus.NOT_FOUND);
+    }
+
+    if (user.accounts.length > 1) {
+      throw new HttpException('User has multiple accounts, which is not allowed', HttpStatus.BAD_REQUEST);
+    }
+
+    const account = user.accounts[0];
+    if (!account.wallet) {
+      throw new HttpException('Wallet not found for account', HttpStatus.NOT_FOUND);
+    }
+
+    let transaction: Transaction;
+    const transactionId = chargeDto.transactionId;
+
+    const normalizeAmount = (value: any): string => {
+      return parseFloat(Number(value).toFixed(2)).toFixed(2);
+    };
+
+    const receivedAmountStr = normalizeAmount(chargeDto.amount);
+
+    if (transactionId) {
+      transaction = await this.transactionRepository.findOne({
+        where: { transactionid: transactionId, wallet: { id: account.wallet.id } },
+        relations: ['wallet'],
+      });
+
+      if (!transaction) {
+        throw new HttpException('Invalid transaction ID or transaction not associated with user wallet', HttpStatus.BAD_REQUEST);
+      }
+
+      if (transaction.status !== 'CardPending') {
+        throw new HttpException('Transaction is not in Pending', HttpStatus.BAD_REQUEST);
+      }
+
+      const expectedAmountStr = normalizeAmount(transaction.settled_amount);
+      if (receivedAmountStr !== expectedAmountStr) {
+        throw new HttpException(
+          `Incorrect amount. Expected ${expectedAmountStr}, received ${receivedAmountStr}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const now = new Date();
+      const transactionTime = new Date(transaction.dated);
+      const timeDiffMs = now.getTime() - transactionTime.getTime();
+      const timeDiffMinutes = timeDiffMs / (1000 * 60);
+
+      if (timeDiffMinutes > 40) {
+        throw new HttpException(
+          'The 40-minute time allocated to this payment has expired',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
+    const paymentType = this.encryptionUtil.determinePaymentType(chargeDto.cardNumber);
+    if (!paymentType) {
+      throw new HttpException('Invalid card number or unsupported card', HttpStatus.BAD_REQUEST);
+    }
+
+    const cardDetailsString = `${chargeDto.cardNumber.replace(/\s+/g, '')}|${chargeDto.cvv}|${chargeDto.cardDate}|${chargeDto.cardName.replace(/\s+/g, '')}|${chargeDto.amount}`;
+    const encryptedCardDetails = this.encryptionUtil.encrypter(cardDetailsString);
+    if (!encryptedCardDetails) {
+      throw new HttpException('Failed to encrypt card details', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    const amount = parseFloat(receivedAmountStr);
+    const fee = Math.round(amount * 0.0135);
+    const total = amount - fee;
+
+    const currency = transaction?.currency_settled || 'NGN';
+
+    if (transaction) {
+      let targetBalance = account.wallet.balances.find(b => b.currency === currency);
+      if (!targetBalance) {
+        targetBalance = {
+          currency,
+          api_balance: 0,
+          payout_balance: 0,
+          collection_balance: 0,
+        };
+        account.wallet.balances.push(targetBalance);
+      }
+
+      // Determine which balance to fund based on transaction metadata or default
+      const balanceType = transaction.balanceType || 'collection';
+      
+      // Fund only the specified balance type
+      switch (balanceType) {
+        case 'api':
+          targetBalance.api_balance += amount;
+          transaction.eventname = 'Fund API Balance';
+          transaction.narration = `Fund API balance via card (${paymentType})`;
+          transaction.balance_before = targetBalance.api_balance - amount;
+          transaction.balance_after = targetBalance.api_balance;
+          break;
+        case 'collection':
+        default:
+          targetBalance.payout_balance += amount;
+          targetBalance.collection_balance += amount;
+          transaction.eventname = 'Fund Payout Balance';
+          transaction.narration = `Fund payout balance via card (${paymentType})`;
+          transaction.balance_before = targetBalance.payout_balance - amount;
+          transaction.balance_after = targetBalance.payout_balance;
+          break;
+      }
+
+      transaction.status = 'success';
+      transaction.type = 'Inflow';
+
+      await this.walletRepository.save(account.wallet);
     }
 
     await this.transactionRepository.save(transaction);
@@ -748,6 +963,8 @@ async getPaymentLinks(userId: string) {
       const { amount, account_number, bank_code, beneficiary_name, currency, narration, accountId } = payoutDto;
 
       const account = await this.accountRepository.findOne({ where: { id: accountId }, relations: ['wallet', 'wallet.transactions'] });
+      console.log("User:",userId)
+      console.log("Account Id:",account)
       if (!account) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
 
       const wallet = account.wallet;
@@ -843,7 +1060,7 @@ async getPaymentLinks(userId: string) {
     }
   }
 
-  async completeNGNPayout(userId: string, completeDto: NGNCompletePayoutDto) {
+  async completeNGNPayout1(userId: string, completeDto: NGNCompletePayoutDto) {
     try {
       const { Id, token } = completeDto;
 
@@ -906,7 +1123,89 @@ async getPaymentLinks(userId: string) {
       throw new HttpException('Failed to complete NGN payout', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+async completeNGNPayout(userId: string, completeDto: NGNCompletePayoutDto) {
+  try {
+    const { Id, token } = completeDto;
 
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+
+    if (user.payoutOtp !== token || !user.payoutOtpExpiresAt || user.payoutOtpExpiresAt < new Date() || user.pendingPayoutId !== Id) {
+      throw new HttpException('Invalid or expired OTP', HttpStatus.BAD_REQUEST);
+    }
+
+    const transaction = await this.transactionRepository.findOne({
+      where: { transactionid: Id, wallet: { account: { users: { id: userId } } } },
+      relations: ['wallet', 'wallet.transactions'],
+    });
+    if (!transaction) throw new HttpException('Transaction not found', HttpStatus.NOT_FOUND);
+
+    const wallet = transaction.wallet;
+    if (!wallet) {
+      console.warn(`Transaction ${Id} has no associated wallet`);
+      throw new HttpException('Cannot complete payout: No wallet found', HttpStatus.BAD_REQUEST);
+    }
+
+    const transactions = wallet.transactions || [];
+    let payoutBalance = 0;
+    transactions.forEach(tx => {
+      if (!['completed', 'success'].includes(tx.status)) return;
+      const amount = parseFloat(tx.settled_amount.toString());
+      if (isNaN(amount)) {
+        console.warn(`Invalid settled_amount for transaction ${tx.transactionid}: ${tx.settled_amount}`);
+        return;
+      }
+      if (tx.type === 'Inflow' && tx.eventname !== 'Fund API Balance') {
+        payoutBalance += amount;
+      } else if (tx.type === 'Outflow') {
+        payoutBalance -= amount;
+      }
+    });
+
+    if (payoutBalance < transaction.total_amount) throw new HttpException('Insufficient payout balance', HttpStatus.BAD_REQUEST);
+
+    // Deduct from wallet balances, similar to convertAndFund outflow
+    const currency = transaction.currency_settled;
+    const balance = wallet.balances.find(b => b.currency === currency);
+    if (!balance) {
+      console.error(`No ${currency} balance found in wallet`);
+      throw new HttpException(`No ${currency} balance found`, HttpStatus.BAD_REQUEST);
+    }
+
+    if (balance.payout_balance < transaction.total_amount) {
+      console.error(`Insufficient ${currency} payout balance - required: ${transaction.total_amount}, available: ${balance.payout_balance}`);
+      throw new HttpException(`Insufficient ${currency} payout balance`, HttpStatus.BAD_REQUEST);
+    }
+
+    balance.payout_balance -= transaction.total_amount;
+    // Optionally: balance.collection_balance -= transaction.total_amount; // Uncomment if you want to deduct from collection_balance too (not done in convertAndFund outflow)
+
+    await this.walletRepository.save(wallet);
+    console.log(`Deducted ${transaction.total_amount} from ${currency} payout_balance in wallet ${wallet.id}`);
+
+    // Proceed with updating transaction
+    transaction.status = 'Success';
+    transaction.balance_after = payoutBalance - transaction.total_amount;
+    await this.transactionRepository.save(transaction);
+    console.log(`Payout transaction completed: ${transaction.transactionid}`);
+
+    await this.userRepository.updateUser(user.id, {
+      payoutOtp: null,
+      payoutOtpExpiresAt: null,
+      pendingPayoutId: null,
+    });
+
+    return {
+      status: 200,
+      Id,
+      message: 'Payout queued successfully',
+    };
+  } catch (error) {
+    if (error instanceof HttpException) throw error;
+    console.error('Complete NGN payout error:', error);
+    throw new HttpException('Failed to complete NGN payout', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
 async getTransactions1(userId: string) {
   try {
     const account = await this.accountRepository.findOne({

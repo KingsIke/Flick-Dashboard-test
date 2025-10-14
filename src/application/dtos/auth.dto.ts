@@ -300,7 +300,15 @@ export class CreateChargeDto {
     @IsString()
   @IsNotEmpty()
 
+  @IsString()
+  @IsNotEmpty()
   transactionId: string;
+
+  @IsOptional()
+  @IsEnum(['api', 'collection'], { 
+    message: 'balanceType must be one of: api, collection' 
+  })
+  balanceType?: 'api' | 'collection';
 }
 
 export class CardChargeDto {
@@ -337,6 +345,13 @@ export class CardChargeDto {
   @IsNotEmpty()
 
   transactionId?: string;
+
+    @IsOptional()
+  @IsEnum(['api', 'collection'], { 
+    message: 'balanceType must be one of: api, collection' 
+  })
+  balanceType?: 'api' |  'collection';
+
 }
 
 
