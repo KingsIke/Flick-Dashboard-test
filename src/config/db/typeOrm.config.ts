@@ -13,7 +13,7 @@ import { Country } from 'src/domain/entities/country.entity';
 
 dotenv.config();
 
-export const typeOrmConfig1: TypeOrmModuleOptions = {
+export const typeOrmConfig2: TypeOrmModuleOptions = {
   type: 'postgres',
   host: "localhost",
   port: 5432,
@@ -30,21 +30,46 @@ export const typeOrmConfig1: TypeOrmModuleOptions = {
 
 
 export const typeOrmConfig = (configService: ConfigService = new ConfigService()): TypeOrmModuleOptions => {
-  const connectionString = configService.get<string>('DATABASE_URL') || 'postgresql://Flick:Flick12345@@postgresql-177046-0.cloudclusters.net:10031/Flick';
+  const connectionString = configService.get<string>('DATABASE_URL') || 
+    'postgresql://Flick:Flick12345@postgresql-177046-0.cloudclusters.net:10031/Flick';
+  
   const url = new URL(connectionString);
 
   return {
-    type: 'postgres',
+    type: 'postgres' as const,
     host: url.hostname,
     port: parseInt(url.port, 10),
     username: url.username,
     password: decodeURIComponent(url.password),
     database: url.pathname.slice(1),
-    entities: [User, Account, Wallet, Transaction, Bank, PaymentPage, Beneficiary, Country],
-    synchronize: true,
+   entities: [User, Account, Wallet, Transaction, Bank, PaymentPage,  Beneficiary, Country],
     migrations: [__dirname + '/../migrations/*{.ts,.js}'],
+    synchronize: false,
     migrationsRun: true,
-    logging: ['error', 'query'],
+    logging: ['error', 'query', 'migration'],
+  };
+};
+
+
+export const typeOrmConfig3 = (configService: ConfigService = new ConfigService()): TypeOrmModuleOptions => {
+  const connectionString = configService.get<string>('DATABASE_URL') || 
+    'postgresql://Flick:Flick12345@postgresql-177046-0.cloudclusters.net:10031/Flick';
+  
+  const url = new URL(connectionString);
+
+  return {
+    type: 'postgres' as const,
+    host: url.hostname,
+    port: parseInt(url.port, 10),
+    username: url.username,
+    password: decodeURIComponent(url.password),
+    database: url.pathname.slice(1),
+    entities: [__dirname + '/../**/*.entity{.ts,.js}'],
+    migrations: [__dirname + '/../migrations/*{.ts,.js}'],
+    synchronize: true, // Set to true to drop and recreate tables
+    dropSchema: true, // This will drop the entire schema on startup
+    migrationsRun: false,
+    logging: ['error', 'query', 'migration'],
   };
 };
 

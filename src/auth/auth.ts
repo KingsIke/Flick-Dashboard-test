@@ -35,7 +35,7 @@ export class AuthService {
    private getOtpExpiry(minutes = 10): Date {
     return new Date(Date.now() + minutes * 60 * 1000);
   }
-async signUp(signUpDto: SignUpDto & Partial<AddBusinessDto>) {
+async signUp1(signUpDto: SignUpDto & Partial<AddBusinessDto>) {
   const queryRunner = this.dataSource.createQueryRunner();
   await queryRunner.connect();
   await queryRunner.startTransaction();
@@ -78,7 +78,8 @@ async signUp(signUpDto: SignUpDto & Partial<AddBusinessDto>) {
     });
     await queryRunner.manager.save(user);
 
-    await this.emailService.sendVerificationEmail(signUpDto.email, otp);
+
+  await this.emailService.sendVerificationEmail(user.email, otp, signUpDto.name);
 
     const businessDto = {
       business_name: `${signUpDto.business_name} Business`,
@@ -109,8 +110,80 @@ async signUp(signUpDto: SignUpDto & Partial<AddBusinessDto>) {
     await queryRunner.release();
   }
 }
+async signUp(signUpDto: SignUpDto & Partial<AddBusinessDto>) {
+  const queryRunner = this.dataSource.createQueryRunner();
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
 
-async addBusinessTransactional(queryRunner: QueryRunner, userId: string, addBusinessDto: AddBusinessDto) {
+  try {
+    signUpDto.email = signUpDto.email.trim().toLowerCase();
+
+    const { confirm_password, ...userPayload } = signUpDto;
+
+    const existingUser = await this.userRepository.findByEmail(signUpDto.email);
+    if (existingUser) throw new HttpException('Email already exists', HttpStatus.BAD_REQUEST);
+
+    const existingBusiness = await this.accountRepository.findOne({
+      where: { business_name: signUpDto.business_name },
+    });
+    if (existingBusiness) {
+      throw new HttpException(
+        `Business with business_name '${signUpDto.business_name}' already exists`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (signUpDto.password !== confirm_password) {
+      throw new HttpException('Passwords do not match', HttpStatus.BAD_REQUEST);
+    }
+
+    const hashedPassword = await hash(signUpDto.password, 10);
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const verificationExpiresAt = this.getOtpExpiry();
+
+    const user = queryRunner.manager.create(User, {
+      ...userPayload,
+      password: hashedPassword,
+      verificationCode: otp,
+      verificationExpiresAt,
+      isVerified: false,
+      referral_code: crypto.randomBytes(5).toString('hex'),
+    });
+    const savedUser = await queryRunner.manager.save(User, user);
+
+    await this.emailService.sendVerificationEmail(user.email, otp, signUpDto.name || signUpDto.business_name);
+
+    const businessDto = {
+      business_name: `${signUpDto.business_name} Business`,
+      currencies: signUpDto.currencies || ['NGN'],
+      business_type: signUpDto.business_type || 'merchant',
+      country: signUpDto.country || 'Nigeria',
+      bizAddress: signUpDto.bizAddress,
+      business_website: signUpDto.business_website,
+      account_no: signUpDto.account_no || '',
+      account_name: signUpDto.account_name || '',
+      bank_name: signUpDto.bank_name || '',
+    };
+
+    await this.addBusinessTransactional(queryRunner, savedUser.id, businessDto);
+
+    await queryRunner.commitTransaction();
+
+    return {
+      message: 'Please verify your email with the OTP sent to your mail',
+      data: {},
+    };
+  } catch (error) {
+    await queryRunner.rollbackTransaction();
+    console.error('Sign up error:', error);
+    if (error instanceof HttpException) throw error;
+    throw new HttpException('Failed to sign up', HttpStatus.INTERNAL_SERVER_ERROR);
+  } finally {
+    await queryRunner.release();
+  }
+}
+
+async addBusinessTransactional1(queryRunner: QueryRunner, userId: string, addBusinessDto: AddBusinessDto) {
   const user = await queryRunner.manager.findOne(User, {
     where: { id: userId },
     relations: ['accounts'],
@@ -122,7 +195,7 @@ async addBusinessTransactional(queryRunner: QueryRunner, userId: string, addBusi
   const { business_name } = addBusinessDto;
 
   const existingBusiness = await queryRunner.manager.findOne(Account, {
-    where: [{ business_name }],
+    where: { business_name },
   });
   if (existingBusiness) {
     throw new HttpException(
@@ -186,7 +259,84 @@ async addBusinessTransactional(queryRunner: QueryRunner, userId: string, addBusi
 
   };
 }
+async addBusinessTransactional(queryRunner: QueryRunner, userId: string, addBusinessDto: AddBusinessDto) {
+  const user = await queryRunner.manager.findOne(User, {
+    where: { id: userId },
+    relations: ['accounts'],
+  });
 
+  if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+  if (user.accounts?.length > 0) throw new HttpException('User can only have one account', HttpStatus.BAD_REQUEST);
+
+  const { business_name } = addBusinessDto;
+
+  const existingBusiness = await queryRunner.manager.findOne(Account, {
+    where: { business_name }, // ✅ Simplified where clause
+  });
+  if (existingBusiness) {
+    throw new HttpException(
+      `Business with business_name '${business_name}' already exists`,
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  const account = queryRunner.manager.create(Account, {
+    ...addBusinessDto,
+    business_type: addBusinessDto.business_type || 'merchant', // ✅ Ensure business_type is set
+    currency: addBusinessDto.currencies?.[0] || 'NGN', // ✅ Fallback currency
+    user, // ✅ Set the user relationship
+    userId: user.id, // ✅ Explicitly set userId
+    dated: new Date(), // ✅ Ensure dated is set
+  });
+
+  console.log('Account to save:', account); // ✅ Debug log
+  const savedAccount = await queryRunner.manager.save(Account, account);
+
+  const initialFundingAmount = 1000;
+  const balances = (addBusinessDto.currencies || ['NGN']).map(currency => ({
+    currency,
+    api_balance: 0,
+    payout_balance: initialFundingAmount,
+    collection_balance: initialFundingAmount,
+  }));
+
+  const wallet = queryRunner.manager.create(Wallet, {
+    account,
+    account_id: savedAccount.id, // ✅ Use saved account ID
+    balances,
+  });
+  const savedWallet = await queryRunner.manager.save(Wallet, wallet);
+
+  for (const balance of balances) {
+    const transactionId = `flick-${crypto.randomUUID()}`;
+    const initialFunding = queryRunner.manager.create(Transaction, {
+      eventname: `Initial Funding ${balance.currency}`,
+      transtype: 'credit',
+      total_amount: balance.collection_balance,
+      settled_amount: balance.collection_balance,
+      fee_charged: 0,
+      currency_settled: balance.currency,
+      dated: new Date(),
+      status: 'success',
+      initiator: user.email,
+      type: 'Inflow',
+      transactionid: transactionId,
+      narration: `Initial wallet funding for ${balance.currency} on signup`,
+      balance_before: 0,
+      balance_after: balance.collection_balance,
+      channel: 'system',
+      email: user.email,
+      wallet: savedWallet, // ✅ Use saved wallet
+    });
+    await queryRunner.manager.save(Transaction, initialFunding);
+  }
+
+  return {
+    message: 'Business added successfully',
+    accountId: savedAccount.id,
+    wallet_id: savedWallet.id,
+  };
+}
  async verifyEmail(verifyEmailDto: VerifyEmailDto) {
   try{
 
@@ -321,6 +471,7 @@ return await this.loginAfterVerification(user);
     loginDto.email = loginDto.email.trim().toLowerCase();
 
     const user = await this.userRepository.findByEmail(email);
+    
     console.log(loginDto.email, "and", email)
     console.log(user)
     if (!user) throw new HttpException('Invalid credentials', HttpStatus.UNAUTHORIZED);

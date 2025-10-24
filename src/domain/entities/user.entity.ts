@@ -1,33 +1,30 @@
-/* eslint-disable prettier/prettier */
-import { Entity, Column, PrimaryGeneratedColumn, ManyToMany, JoinTable, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 import { Account } from './account.entity';
-
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ nullable: true })
-  name: string;
-
-  @Column({ unique: true })
-  @Index()
+  @Column()
   email: string;
 
   @Column()
   password: string;
 
   @Column({ nullable: true })
-  verificationCode?: string;
-
-  @Column({ type: 'timestamp', nullable: true })
-  verificationExpiresAt?: Date;
+  name: string;
 
   @Column({ nullable: true })
-  resetPasswordCode?: string;
+  verificationCode: string;
 
   @Column({ type: 'timestamp', nullable: true })
-  resetPasswordExpiresAt?: Date;
+  verificationExpiresAt: Date;
+
+  @Column({ nullable: true })
+  resetPasswordCode: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  resetPasswordExpiresAt: Date;
 
   @Column({ default: false })
   isLive: boolean;
@@ -36,28 +33,25 @@ export class User {
   isVerified: boolean;
 
   @Column({ nullable: true })
-  avatar?: string;
+  avatar: string;
 
   @Column({ nullable: true })
-  phone?: string;
+  phone: string;
 
   @Column({ nullable: true })
-  website?: string;
+  website: string;
 
   @Column({ nullable: true })
-  country?: string;
-
-  // @Column({ nullable: true })
-  // bizAddress?: string;
+  country: string;
 
   @Column({ nullable: true })
-  referral_code?: string;
+  referral_code: string;
 
   @Column({ nullable: true })
-  supportEmail?: string;
+  supportEmail: string;
 
   @Column({ nullable: true })
-  supportPhone?: string;
+  supportPhone: string;
 
   @Column({ nullable: true })
   payoutOtp: string;
@@ -68,10 +62,6 @@ export class User {
   @Column({ nullable: true })
   pendingPayoutId: string;
 
-@ManyToMany(() => Account, (account) => account.users)
-@JoinTable({
-  name: 'users_accounts',
-})
-accounts: Account[];
-
+  @OneToMany(() => Account, (account) => account.user)
+  accounts: Account[];
 }

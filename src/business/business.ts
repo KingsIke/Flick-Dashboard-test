@@ -456,7 +456,7 @@ async createCardCharge(userId: string, chargeDto: CardChargeDto) {
 async getPaymentLinks(userId: string) {
   try {
     const account = await this.accountRepository.findOne({
-      where: { users: { id: userId } },
+      where: { user: { id: userId } },
       relations: ['paymentPages'],
     });
     if (!account) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
@@ -736,7 +736,7 @@ async getPaymentLinks(userId: string) {
     try {
       console.log('1: Funding wallet for userId:', userId, 'DTO:', fundWalletDto);
       const account = await this.accountRepository.findOne({
-        where: { id: fundWalletDto.accountId, users: { id: userId } },
+        where: { id: fundWalletDto.accountId, user: { id: userId } },
         relations: ['wallet'],
       });
       if (!account || !account.wallet) throw new HttpException('Account or wallet not found', HttpStatus.NOT_FOUND);
@@ -825,7 +825,7 @@ async getPaymentLinks(userId: string) {
     console.log('1: Funding wallet for userId:', userId, 'DTO:', fundWalletDto);
 
     const account = await this.accountRepository.findOne({
-      where: { id: fundWalletDto.accountId, users: { id: userId } },
+      where: { id: fundWalletDto.accountId, user: { id: userId } },
       relations: ['wallet'],
     });
 
@@ -913,7 +913,7 @@ async getPaymentLinks(userId: string) {
     try {
       console.log('1: Fetching balances for userId:', userId, 'accountId:', accountId);
       const account = await this.accountRepository.findOne({
-        where: { id: accountId, users: { id: userId } },
+        where: { id: accountId, user: { id: userId } },
         relations: ['wallet'],
       });
       if (!account || !account.wallet) {
@@ -1072,7 +1072,7 @@ async getPaymentLinks(userId: string) {
       }
 
       const transaction = await this.transactionRepository.findOne({
-        where: { transactionid: Id, wallet: { account: { users: { id: userId } } } },
+        where: { transactionid: Id, wallet: { account: { user: { id: userId } } } },
         relations: ['wallet', 'wallet.transactions'],
       });
       if (!transaction) throw new HttpException('Transaction not found', HttpStatus.NOT_FOUND);
@@ -1135,7 +1135,7 @@ async completeNGNPayout(userId: string, completeDto: NGNCompletePayoutDto) {
     }
 
     const transaction = await this.transactionRepository.findOne({
-      where: { transactionid: Id, wallet: { account: { users: { id: userId } } } },
+      where: { transactionid: Id, wallet: { account: { user: { id: userId } } } },
       relations: ['wallet', 'wallet.transactions'],
     });
     if (!transaction) throw new HttpException('Transaction not found', HttpStatus.NOT_FOUND);
@@ -1209,7 +1209,7 @@ async completeNGNPayout(userId: string, completeDto: NGNCompletePayoutDto) {
 async getTransactions1(userId: string) {
   try {
     const account = await this.accountRepository.findOne({
-      where: { users: { id: userId } },
+      where: { user: { id: userId } },
       relations: ['wallet', 'wallet.transactions'],
     });
 
@@ -1313,7 +1313,7 @@ async getTransactions(userId: string, filterDto: TransactionFilterDto) {
   const { startDate, endDate, status, type, currency } = filterDto;
 
   const account = await this.accountRepository.findOne({
-    where: { users: { id: userId } },
+    where: { user: { id: userId } },
     relations: ['wallet', 'wallet.transactions'],
   });
 
@@ -1392,7 +1392,7 @@ if (type) {
 async getAccount(userId: string) {
   try {
     const account = await this.accountRepository.findOne({
-      where: { users: { id: userId } },
+      where: { user: { id: userId } },
       relations: ['wallet'], // ✅ Only include actual relations
     });
 
@@ -2705,7 +2705,7 @@ async getAccount(userId: string) {
       }
 
       const account = await this.accountRepository.findOne({
-        where: { id: accountId, users: { id: userId } },
+        where: { id: accountId, user: { id: userId } },
         relations: ['wallet'],
       });
       if (!account || !account.wallet) {
@@ -2869,7 +2869,7 @@ async getAccount(userId: string) {
         }
   
         const account = await this.accountRepository.findOne({
-          where: { id: convertAndFundDto.accountId, users: { id: userId } },
+          where: { id: convertAndFundDto.accountId, user: { id: userId } },
           relations: ['wallet'],
         });
         if (!account || !account.wallet) {
@@ -3037,7 +3037,7 @@ async getAccount(userId: string) {
 async getBeneficiaries(userId: string, accountId: string) {
   try {
     const account = await this.accountRepository.findOne({
-      where: { id: accountId, users: { id: userId } },
+      where: { id: accountId, user: { id: userId } },
     });
     if (!account) throw new HttpException('Account not found or unauthorized', HttpStatus.NOT_FOUND);
 
@@ -3080,7 +3080,7 @@ async getBeneficiaries(userId: string, accountId: string) {
   async saveBeneficiary(userId: string, beneficiaryDto: SaveBeneficiaryDto): Promise<Beneficiary> {
     try {
       const account = await this.accountRepository.findOne({
-        where: { id: beneficiaryDto.accountId, users: { id: userId } },
+        where: { id: beneficiaryDto.accountId, user: { id: userId } },
       });
       if (!account) throw new HttpException('Account not found or unauthorized', HttpStatus.NOT_FOUND);
 

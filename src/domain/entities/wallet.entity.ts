@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier */
-import { Entity, Column, PrimaryGeneratedColumn, OneToMany,JoinColumn, OneToOne } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, OneToMany,JoinColumn, OneToOne  } from 'typeorm';
 import { Account } from './account.entity';
 import { Transaction } from './transaction.entity';
 // import { Transaction } from './transaction.entity';
@@ -10,7 +10,7 @@ export class Wallet {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ type: 'uuid' })
   account_id: string;
 
   // @ManyToOne(() => Account, (account) => account.wallet)

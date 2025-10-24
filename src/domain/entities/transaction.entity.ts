@@ -66,6 +66,9 @@ export class Transaction {
 
   @Column({ nullable: true })
   balanceType?: string;
+  
+  @Column({ type: 'uuid' })  // Add this type specification
+  wallet_id: string;
 
  @ManyToOne(() => Wallet, (wallet) => wallet.transactions)
   @JoinColumn({ name: 'wallet_id' }) // ✅ FIX: use correct column

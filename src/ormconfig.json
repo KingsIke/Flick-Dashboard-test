@@ -1,0 +1,11 @@
+{
+  "type": "postgres",
+  "url": "postgresql://Flick:Flick12345@postgresql-177046-0.cloudclusters.net:10031/Flick",
+  "entities": ["src/**/*.entity.ts"],
+  "migrations": ["src/migrations/*.ts"],
+  "cli": {
+    "migrationsDir": "src/migrations"
+  },
+  "synchronize": false,
+  "logging": true
+}
