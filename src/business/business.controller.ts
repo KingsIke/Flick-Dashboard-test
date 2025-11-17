@@ -14,7 +14,7 @@ import {
 import { AuthService } from '../auth/auth';
 import { BankService } from '../infrastructure/services/banks/bank.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { CardChargeDto, ConvertAndFundDto, CreateChargeDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanCreateMerchantDto, SaveBeneficiaryDto, TransactionFilterDto, USDPayoutDto } from '../application/dtos/auth.dto';
+import { CardChargeDto, ConvertAndFundDto, CreateChargeDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanChargeDto, NubanCreateMerchantDto, SaveBeneficiaryDto, TransactionFilterDto, USDPayoutDto } from '../application/dtos/auth.dto';
 import { BusinessService } from './business';
 
 
@@ -36,26 +36,6 @@ export class BusinessController {
   async getBalances(@Request() req) {
     return await this.businessService.getBalances(req.user.sub, req.query.accountId);
   }
-
-  // @Get('transactions')
-  // @UseGuards(JwtAuthGuard)
-  // @HttpCode(HttpStatus.OK)
-  // async getTransactions(@Param('accountId') accountId: string) {
-  //   return await this.businessService.getTransactions(accountId);
-  // }
-  
-  // @Get('transactions/:accountId')
-  // @UseGuards(JwtAuthGuard)
-  // @HttpCode(HttpStatus.OK)
-  // async getTransactions1(@Param('accountId') accountId: string) {
-  //   return await this.businessService.getTransactions1(accountId);
-  // }
-  // @Get('transactions')
-  // @UseGuards(JwtAuthGuard)
-  // @HttpCode(HttpStatus.OK)
-  // async getTransactions(@Request() req) {
-  //   return await this.businessService.getTransactions(req.user.sub);
-  // }
 
   @Post('transactions')
     @UseGuards(JwtAuthGuard)
@@ -96,13 +76,31 @@ async createCardCharge(@Body() cardChargeDto: CardChargeDto, @Request() req) {
   async nubanCreateMerchant(@Request() req, @Body() nubanDto: NubanCreateMerchantDto) {
     return this.businessService.nubanCreateMerchant(req.user.sub, nubanDto);
   }
-
-  @Get('payment-pages/:accountId')
-  @UseGuards(JwtAuthGuard)
+  @Post('nuban-charge')
+    @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  async getPaymentPages(@Param('accountId') accountId: string) {
-    return this.businessService.getPaymentPages(accountId);
+  async createNubanCharge(
+    @Body() nubanChargeDto: NubanChargeDto,
+    @Request() req,
+  ) {
+
+    return this.businessService.createNubanCharge(req.user.sub, nubanChargeDto);
   }
+
+  // @Get('payment-pages/:accountId')
+  // @UseGuards(JwtAuthGuard)
+  // @HttpCode(HttpStatus.OK)
+  // async getPaymentPages(@Param('accountId') accountId: string) {
+  //   return this.businessService.getPaymentPages(accountId);
+  // }
+
+  @Get('payment-pages')
+@UseGuards(JwtAuthGuard)
+@HttpCode(HttpStatus.OK)
+async getPaymentPages(@Request() req) {
+  return this.businessService.getPaymentPagesByUser(req.user.sub);
+}
+
 
   @Post('fund-payout-balance')
   @UseGuards(JwtAuthGuard)

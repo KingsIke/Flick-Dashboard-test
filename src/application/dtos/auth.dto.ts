@@ -734,3 +734,27 @@ export class UsdPayoutDto {
   @IsNotEmpty()
   currency: Currency;
 }
+
+export class NubanChargeDto {
+  @IsString()
+  @IsNotEmpty()
+  transactionId: string;
+
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  @IsNotEmpty()
+  amount: number;
+
+  @IsString()
+  @IsNotEmpty()
+  type: string; 
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsOptional()
+  @IsEnum(['api', 'collection'], { 
+    message: 'balanceType must be one of: api, collection' 
+  })
+  balanceType?: 'api' | 'collection';
+}

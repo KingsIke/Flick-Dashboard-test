@@ -1,7 +1,7 @@
 /* eslint-disable prettier/prettier */
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { AddBusinessDto, CardChargeDto, CardDetailsDto, ConvertAndFundDto, CreateChargeDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanCreateMerchantDto, SaveBeneficiaryDto, TransactionFilterDto, USDPayoutDto } from '../application/dtos/auth.dto';
+import { AddBusinessDto, CardChargeDto, CardDetailsDto, ConvertAndFundDto, CreateChargeDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanChargeDto, NubanCreateMerchantDto, SaveBeneficiaryDto, TransactionFilterDto, USDPayoutDto } from '../application/dtos/auth.dto';
 import { AccountRepository } from '../infrastructure/repositories/account.repository';
 import { TransactionRepository } from '../infrastructure/repositories/transaction.repository';
 import { UserRepository } from '../infrastructure/repositories/user.repository';
@@ -408,11 +408,8 @@ async createCardCharge(userId: string, chargeDto: CardChargeDto) {
         };
         account.wallet.balances.push(targetBalance);
       }
-
-      // Determine which balance to fund based on transaction metadata or default
       const balanceType = transaction.balanceType || 'collection';
       
-      // Fund only the specified balance type
       switch (balanceType) {
         case 'api':
           targetBalance.api_balance += amount;
@@ -450,6 +447,119 @@ async createCardCharge(userId: string, chargeDto: CardChargeDto) {
     throw error instanceof HttpException
       ? error
       : new HttpException('Failed to create card charge', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+
+
+async createNubanCharge(userId: string, nubanDto: NubanChargeDto) {
+  try {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['accounts', 'accounts.wallet'],
+    });
+
+    if (!user) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    if (!user.accounts || user.accounts.length === 0) {
+      throw new HttpException('No account found for user', HttpStatus.NOT_FOUND);
+    }
+
+    if (user.accounts.length > 1) {
+      throw new HttpException('User has multiple accounts, which is not allowed', HttpStatus.BAD_REQUEST);
+    }
+
+    const account = user.accounts[0];
+    const wallet = account.wallet;
+
+    if (!wallet) {
+      throw new HttpException('Wallet not found for account', HttpStatus.NOT_FOUND);
+    }
+
+
+    const existingTransaction = await this.transactionRepository.findOne({
+      where: { transactionid: nubanDto.transactionId, wallet: { id: wallet.id } },
+      relations: ['wallet'],
+    });
+
+    if (existingTransaction) {
+      throw new HttpException('Transaction ID already exists', HttpStatus.BAD_REQUEST);
+    }
+
+    const currency = 'NGN';
+    const amount = nubanDto.amount;
+    const balanceType = nubanDto.balanceType || 'collection';
+
+    let targetBalance = wallet.balances.find(b => b.currency === currency);
+
+    if (!targetBalance) {
+      targetBalance = {
+        currency,
+        api_balance: 0,
+        payout_balance: 0,
+        collection_balance: 0,
+      };
+      wallet.balances.push(targetBalance);
+    }
+
+
+    let beforeBalance = 0;
+
+    if (balanceType === 'api') {
+      beforeBalance = targetBalance.api_balance;
+      targetBalance.api_balance += amount;
+    } else {
+      beforeBalance = targetBalance.collection_balance;
+      targetBalance.collection_balance += amount;
+      targetBalance.payout_balance += amount; 
+    }
+
+   
+    await this.walletRepository.save(wallet);
+
+    const transaction = this.transactionRepository.create({
+      eventname: 'NUBAN Funding',
+      transtype: 'credit',
+      total_amount: amount,
+      settled_amount: amount,
+      fee_charged: 0,
+      currency_settled: currency,
+      dated: new Date(),
+      status: 'success',
+      initiator: user.email,
+      type: 'Inflow',
+      transactionid: nubanDto.transactionId,
+      narration: nubanDto.description || `NUBAN funding (${balanceType} balance)`,
+      balance_before: beforeBalance,
+      balance_after:
+        balanceType === 'api'
+          ? targetBalance.api_balance
+          : targetBalance.collection_balance,
+      channel: 'nuban',
+      email: user.email,
+      wallet,
+      balanceType,
+    });
+
+    await this.transactionRepository.save(transaction);
+
+    return {
+      statusCode: 200,
+      status: 'success',
+      message: 'NUBAN deposit added successfully',
+      data: {
+        transactionId: nubanDto.transactionId,
+        amount,
+        balanceType,
+        currency,
+      },
+    };
+  } catch (error) {
+    console.error('Create NUBAN charge error:', error);
+    throw error instanceof HttpException
+      ? error
+      : new HttpException('Failed to create NUBAN charge', HttpStatus.INTERNAL_SERVER_ERROR);
   }
 }
 
@@ -936,13 +1046,15 @@ async getPaymentLinks(userId: string) {
           payout_balance: 0,
           api_balance: 0,
         };
-        return {
-          currency,
-          collection_balance: Number(balance.collection_balance.toFixed(2)),
-          payout_balance: Number(balance.payout_balance.toFixed(2)),
-          api_balance: Number(balance.api_balance?.toFixed(2) || 0),
-        };
-      });
+          const multiplier = 100;
+
+      return {
+        currency,
+        collection_balance: Number((balance.collection_balance * multiplier).toFixed(2)),
+        payout_balance: Number((balance.payout_balance * multiplier).toFixed(2)),
+        api_balance: Number((balance.api_balance * multiplier || 0).toFixed(2)),
+      };
+    });
       console.log('3: Formatted balances:', JSON.stringify(balances));
 
       return {
@@ -1481,7 +1593,7 @@ async getAccount(userId: string) {
   }
 
 
-  async getPaymentPages(accountId: string) {
+  async getPaymentPages0(accountId: string) {
     try {
       const paymentPages = await this.paymentPageRepository.findByAccountId(accountId);
       if (!paymentPages.length) throw new HttpException('No payment pages found', HttpStatus.NOT_FOUND);
@@ -1493,6 +1605,39 @@ async getAccount(userId: string) {
       throw new HttpException('Failed to retrieve payment pages', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+
+  async getUserAccount(userId: string) {
+  const user = await this.userRepository.findOne({
+    where: { id: userId },
+    relations: ['accounts'], // important to load accounts
+  });
+
+  if (!user || !user.accounts.length) {
+    throw new HttpException('No account found for this user', HttpStatus.NOT_FOUND);
+  }
+
+  // Return the first account for simplicity
+  return user.accounts[0];
+}
+
+async getPaymentPagesByUser(userId: string) {
+  // 1. Get user's account
+  const account = await this.getUserAccount(userId);
+
+  // 2. Get payment pages for that account
+  const paymentPages = await this.paymentPageRepository.find({
+    where: { account: { id: account.id } },
+    relations: ['account'],
+  });
+
+  if (!paymentPages.length) {
+    throw new HttpException('No payment pages found', HttpStatus.NOT_FOUND);
+  }
+
+  return { data: paymentPages };
+}
+
+
 
   //   async fundPayoutBalance(userId: string, fundDto: FundPayoutBalanceDto) {
   //   try {
