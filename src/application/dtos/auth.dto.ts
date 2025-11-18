@@ -11,10 +11,7 @@ export class SignUpDto {
  
   @IsString()
   @IsNotEmpty()
-   @Matches(/^(?=.*[A-Z])(?=.*[a-zA-Z])(?=.*\d)(?=.*[\W_]).+$/, {
-    message:
-      'Password must include at least one uppercase letter, one letter, one number, and one symbol',
-  })
+  
   password: string;
 
    @IsString()
@@ -146,10 +143,10 @@ export class ResetPasswordDto {
 
   @IsString()
   @IsNotEmpty()
-  @Matches(/^(?=.*[A-Z])(?=.*[a-zA-Z])(?=.*\d)(?=.*[\W_]).+$/, {
-    message:
-      'Password must include at least one uppercase letter, one letter, one number, and one symbol',
-  })
+  // @Matches(/^(?=.*[A-Z])(?=.*[a-zA-Z])(?=.*\d)(?=.*[\W_]).+$/, {
+  //   message:
+  //     'Password must include at least one uppercase letter, one letter, one number, and one symbol',
+  // })
 
 
   newPassword: string;

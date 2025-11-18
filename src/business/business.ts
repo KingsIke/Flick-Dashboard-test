@@ -526,7 +526,7 @@ async createNubanCharge(userId: string, nubanDto: NubanChargeDto) {
       fee_charged: 0,
       currency_settled: currency,
       dated: new Date(),
-      status: 'success',
+      status: 'Success',
       initiator: user.email,
       type: 'Inflow',
       transactionid: nubanDto.transactionId,
