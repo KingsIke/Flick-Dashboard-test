@@ -7,7 +7,7 @@ export class PaymentPage {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ nullable: true })
   pageName: string;
 
   @Column({ type: 'jsonb', nullable: true })
@@ -24,24 +24,42 @@ export class PaymentPage {
   };
 
   @Column()
-  productType: string;
-
-  @Column()
   currency_collected: string;
 
   @Column()
   currency: string;
 
-  @Column()
-  access_code: string;
+  @Column({ name: 'access_code' })
+  access_code: string; 
 
-  @Column()
+  @Column({ default: 'active' })
   status: string;
 
-  @Column()
+  @Column({ nullable: true })
+  url: string;
+
+  @Column('decimal', { nullable: true })
+  exchange_rate: number;
+
+  @Column('decimal', { nullable: true })
+  settled_amount: number;
+
+  @Column('decimal', { nullable: true })
+  amountPayable: number;
+
+  @Column({ nullable: true })
+  payableAmountString: string;
+
+  @Column({ nullable: true })
+  payableFxAmountString: string;
+
+  @Column('decimal', { nullable: true })
+  rate: number;
+
+  @Column({ default: 'api' })
   source: string;
 
-  @Column()
+  @Column({ default: true })
   isFixedAmount: boolean;
 
   @Column()
@@ -51,31 +69,31 @@ export class PaymentPage {
   currency_settled: string;
 
   @Column({ nullable: true })
-  successmsg: string | null;
+  successmsg: string;
 
   @Column({ nullable: true })
-  customLink: string | null;
+  customLink: string;
 
-  @Column()
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   dated: Date;
 
-  // @Column()
-  // amount: number;
+  @Column('decimal', { nullable: true })
+  amount: number; 
 
   @Column({ nullable: true })
-  amount: string;
-
-  @Column({ nullable: true })
-  redirectLink: string | null;
+  redirectLink: string;
 
   @Column()
   CustomerCode: string;
 
-  @Column()
+  @Column({ type: 'text', nullable: true })
   description: string;
 
   @Column({ nullable: true })
-  custompaymentUrl: string | null;
+  custompaymentUrl: string;
+
+    @Column({ type: 'jsonb', nullable: true })
+  productType: string[];
 
   @ManyToOne(() => Account, (account) => account.paymentPages)
   account: Account;

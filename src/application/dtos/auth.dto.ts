@@ -242,54 +242,6 @@ currencies: string[];
   isDomiciliary?: boolean;
 }
 
-
-// export class CreateChargeDto {
-//   @IsString()
-//   @IsNotEmpty()
-//   accountId: string;
-
-//   @IsNumber({ allowNaN: false, allowInfinity: false })
-//   @IsNotEmpty()
-//   amount: number;
-  
-
-//   @IsString()
-//   @IsNotEmpty()
-//   currency: string;
-
-//   @IsString()
-//   @IsOptional()
-//   pageName?: string;
-
-//   @IsString()
-//   @IsOptional()
-//   description?: string;
-
-//   @IsString()
-//   @IsOptional()
-//   customLink?: string;
-
-//   @IsString()
-//   @IsOptional()
-//   redirectLink?: string;
-
-//   @IsString()
-//   @IsOptional()
-//   successmsg?: string;
-
-//   @IsString()
-//   @IsNotEmpty()
-//   currency_collected: string;
-
-//   @IsString()
-//   @IsOptional()
-//   currency_settled?: string;
-
-//   @IsString()
-//   @IsNotEmpty()
-//   productType: string;
-// }
-
 export class CreateChargeDto {
   @IsNumber({ allowNaN: false, allowInfinity: false })
   @IsNotEmpty()
@@ -754,4 +706,44 @@ export class NubanChargeDto {
     message: 'balanceType must be one of: api, collection' 
   })
   balanceType?: 'api' | 'collection';
+}
+
+export class CreatePaymentLinkDto {
+  @IsString()
+  @IsNotEmpty()
+  currency_collected: string;
+
+  @IsString()
+  @IsNotEmpty()
+  currency_settled: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsArray()
+  @IsNotEmpty()
+  product_type: string[];
+
+  @IsString()
+  @IsNotEmpty()
+  amount: string;
+}
+
+export class CreateForeignFundChargeDto {
+  @IsString()
+  @IsNotEmpty()
+  currency_collected: string;
+
+  @IsString()
+  @IsNotEmpty()
+  currency_settled: string;
+
+  @IsString()
+  @IsNotEmpty()
+  amount: string;
+
+  @IsString()
+  @IsOptional()
+  call_source?: string;
 }

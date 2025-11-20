@@ -14,7 +14,7 @@ import {
 import { AuthService } from '../auth/auth';
 import { BankService } from '../infrastructure/services/banks/bank.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { CardChargeDto, ConvertAndFundDto, CreateChargeDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanChargeDto, NubanCreateMerchantDto, SaveBeneficiaryDto, TransactionFilterDto, USDPayoutDto } from '../application/dtos/auth.dto';
+import { CardChargeDto, ConvertAndFundDto, CreateChargeDto, CreateForeignFundChargeDto, CreatePaymentLinkDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanChargeDto, NubanCreateMerchantDto, SaveBeneficiaryDto, TransactionFilterDto, USDPayoutDto } from '../application/dtos/auth.dto';
 import { BusinessService } from './business';
 
 
@@ -175,6 +175,17 @@ async getBeneficiaries(@Request() req, @Body('accountId') accountId: string) {
   @Post('convert-fund')
   async convertAndFund(@Request() req, @Body() convertAndFundDto: ConvertAndFundDto) {
     return this.businessService.convertAndFund(req.user.sub, convertAndFundDto);
+  }
+  @UseGuards(JwtAuthGuard)
+  @Post('generate-dashboard-pay-link')
+  async createPaymentLink(@Request() req, @Body() createPaymentLinkDto: CreatePaymentLinkDto) {
+    return this.businessService.createPaymentLink(req.user.sub, createPaymentLinkDto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('generate-foreign-pay-link')
+  async createForeignPaymentLink(@Request() req, @Body() createForeignFundChargeDto: CreateForeignFundChargeDto) {
+    return this.businessService.createForeignPaymentLink(req.user.sub, createForeignFundChargeDto);
   }
 
   

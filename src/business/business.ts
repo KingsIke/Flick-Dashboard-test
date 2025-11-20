@@ -1,7 +1,7 @@
 /* eslint-disable prettier/prettier */
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { AddBusinessDto, CardChargeDto, CardDetailsDto, ConvertAndFundDto, CreateChargeDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanChargeDto, NubanCreateMerchantDto, SaveBeneficiaryDto, TransactionFilterDto, USDPayoutDto } from '../application/dtos/auth.dto';
+import { AddBusinessDto, CardChargeDto, CardDetailsDto, ConvertAndFundDto, CreateChargeDto, CreateForeignFundChargeDto, CreatePaymentLinkDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanChargeDto, NubanCreateMerchantDto, SaveBeneficiaryDto, TransactionFilterDto, USDPayoutDto } from '../application/dtos/auth.dto';
 import { AccountRepository } from '../infrastructure/repositories/account.repository';
 import { TransactionRepository } from '../infrastructure/repositories/transaction.repository';
 import { UserRepository } from '../infrastructure/repositories/user.repository';
@@ -563,48 +563,7 @@ async createNubanCharge(userId: string, nubanDto: NubanChargeDto) {
   }
 }
 
-async getPaymentLinks(userId: string) {
-  try {
-    const account = await this.accountRepository.findOne({
-      where: { user: { id: userId } },
-      relations: ['paymentPages'],
-    });
-    if (!account) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
 
-    const paymentPages = await this.paymentPageRepository.find({
-      where: { account: { id: account.id } },
-    });
-
-    return {
-      status: 200,
-      data: paymentPages.map(page => ({
-        pageName: page.pageName,
-        checkout_settings: page.checkout_settings,
-        productType: page.productType,
-        currency_collected: page.currency_collected,
-        currency: page.currency,
-        access_code: page.access_code,
-        status: page.status,
-        source: page.source,
-        isFixedAmount: page.isFixedAmount,
-        paymentUrl: page.paymentUrl,
-        currency_settled: page.currency_settled,
-        successmsg: page.successmsg,
-        customLink: page.customLink,
-        dated: page.dated,
-        amount: page.amount,
-        redirectLink: page.redirectLink,
-        CustomerCode: page.CustomerCode,
-        description: page.description,
-        custompaymentUrl: page.custompaymentUrl,
-      })),
-    };
-  } catch (error) {
-    if (error instanceof HttpException) throw error;
-    console.error('Get payment links error:', error);
-    throw new HttpException('Failed to retrieve payment links', HttpStatus.INTERNAL_SERVER_ERROR);
-  }
-}
 
   async nubanCreateMerchant(userId: string, nubanDto: NubanCreateMerchantDto) {
     try {
@@ -1536,7 +1495,19 @@ async getAccount(userId: string) {
   }
 }
 
+ async getUserAccount(userId: string) {
+  const user = await this.userRepository.findOne({
+    where: { id: userId },
+    relations: ['accounts'], // important to load accounts
+  });
 
+  if (!user || !user.accounts.length) {
+    throw new HttpException('No account found for this user', HttpStatus.NOT_FOUND);
+  }
+
+  // Return the first account for simplicity
+  return user.accounts[0];
+}
   async getUserInfo(userId: string) {
     try{
     const user = await this.userRepository.findOne({ where: { id: userId }, relations: ['accounts', 'accounts.wallet'] });
@@ -1592,6 +1563,340 @@ async getAccount(userId: string) {
     }
   }
 
+    async createPaymentLink0(userId: string, createPaymentLinkDto: CreatePaymentLinkDto) {
+  try {
+    const account = await this.accountRepository.findOne({
+      where: { user: { id: userId } },
+      relations: ['paymentPages'],
+    });
+    if (!account) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
+
+    const accessCode = crypto.randomBytes(5).toString('hex');
+    const paymentUrl = `https://dash-checkout.paywithflick.co/pages/${accessCode}`;
+
+    const exchangeRate = await this.exchangeRateService.getExchangeRate(createPaymentLinkDto.currency_collected, createPaymentLinkDto.currency_settled);
+
+    const settledAmount = createPaymentLinkDto.currency_collected === createPaymentLinkDto.currency_settled
+      ? parseFloat(createPaymentLinkDto.amount)
+      : Math.round(parseFloat(createPaymentLinkDto.amount) / exchangeRate);
+
+    const paymentPage = this.paymentPageRepository.create({
+      access_code: accessCode,
+      paymentUrl,
+      currency: createPaymentLinkDto.currency_collected,
+      currency_collected: createPaymentLinkDto.currency_collected,
+      exchange_rate: exchangeRate,
+      settled_amount: settledAmount,
+      amount: parseFloat(createPaymentLinkDto.amount),
+      amountPayable: 1, 
+      payableAmountString: '₦1.00', 
+      payableFxAmountString: '₦1.00', 
+      rate: 1, 
+      currency_settled: createPaymentLinkDto.currency_settled,
+      description: createPaymentLinkDto.description,
+      productType: createPaymentLinkDto.product_type,
+      account,
+    });
+
+    await this.paymentPageRepository.save(paymentPage);
+
+    return {
+      status: 200,
+      message: 'link generated successfully',
+      data: {
+        access_code: accessCode,
+        url: paymentUrl,
+        currency: createPaymentLinkDto.currency_collected,
+        currency_collected: createPaymentLinkDto.currency_collected,
+        exchange_rate: exchangeRate,
+        settled_amount: settledAmount,
+        amount: parseFloat(createPaymentLinkDto.amount),
+        amountPayable: 1, // Example static value, replace with dynamic logic
+        payableAmountString: '₦1.00', // Example static value, replace with dynamic logic
+        payableFxAmountString: '₦1.00', // Example static value, replace with dynamic logic
+        rate: 1, // Example static value, replace with dynamic logic
+        currency_settled: createPaymentLinkDto.currency_settled,
+      },
+    };
+  } catch (error) {
+    if (error instanceof HttpException) throw error;
+    console.error('Create payment link error:', error);
+    throw new HttpException('Failed to create payment link', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+
+async createPaymentLink1(userId: string, createPaymentLinkDto: CreatePaymentLinkDto) {
+  try {
+    const account = await this.accountRepository.findOne({
+      where: { user: { id: userId } },
+      relations: ['paymentPages'],
+    });
+    if (!account) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
+
+    const accessCode = crypto.randomBytes(5).toString('hex');
+    const paymentUrl = `https://dash-checkout.paywithflick.co/pages/${accessCode}`;
+
+    const exchangeRate = await this.exchangeRateService.getExchangeRate(
+      createPaymentLinkDto.currency_collected, 
+      createPaymentLinkDto.currency_settled
+    );
+
+    const settledAmount = createPaymentLinkDto.currency_collected === createPaymentLinkDto.currency_settled
+      ? parseFloat(createPaymentLinkDto.amount)
+      : Math.round(parseFloat(createPaymentLinkDto.amount) / exchangeRate);
+
+
+    const paymentPage = this.paymentPageRepository.create({
+      access_code: accessCode, 
+      paymentUrl: paymentUrl,
+      currency: createPaymentLinkDto.currency_collected,
+      currency_collected: createPaymentLinkDto.currency_collected,
+      exchange_rate: exchangeRate,
+      settled_amount: settledAmount,
+      amount: parseFloat(createPaymentLinkDto.amount),
+      amountPayable: parseFloat(createPaymentLinkDto.amount), 
+      payableAmountString: `₦${parseFloat(createPaymentLinkDto.amount).toFixed(2)}`, 
+      payableFxAmountString: `$${(parseFloat(createPaymentLinkDto.amount) / exchangeRate).toFixed(2)}`, 
+      rate: exchangeRate, 
+      currency_settled: createPaymentLinkDto.currency_settled,
+      description: createPaymentLinkDto.description,
+      productType: createPaymentLinkDto.product_type,
+      account: account,
+      status: 'active',
+      source: 'api',
+      isFixedAmount: true,
+      dated: new Date(),
+      CustomerCode: account.merchantCode || 'DEFAULT_CODE', 
+    });
+
+    await this.paymentPageRepository.save(paymentPage);
+
+    return {
+      status: 200,
+      message: 'link generated successfully',
+      data: {
+        access_code: accessCode,
+        url: paymentUrl,
+        currency: createPaymentLinkDto.currency_collected,
+        currency_collected: createPaymentLinkDto.currency_collected,
+        exchange_rate: exchangeRate,
+        settled_amount: settledAmount,
+        amount: parseFloat(createPaymentLinkDto.amount),
+        amountPayable: parseFloat(createPaymentLinkDto.amount),
+        payableAmountString: `₦${parseFloat(createPaymentLinkDto.amount).toFixed(2)}`,
+        payableFxAmountString: `$${(parseFloat(createPaymentLinkDto.amount) / exchangeRate).toFixed(2)}`,
+        rate: exchangeRate,
+        currency_settled: createPaymentLinkDto.currency_settled,
+      },
+    };
+  } catch (error) {
+    if (error instanceof HttpException) throw error;
+    console.error('Create payment link error:', error);
+    throw new HttpException('Failed to create payment link', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+async createPaymentLink2(userId: string, createPaymentLinkDto: CreatePaymentLinkDto) {
+  try {
+    const account = await this.accountRepository.findOne({
+      where: { user: { id: userId } },
+      relations: ['paymentPages'],
+    });
+    if (!account) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
+
+    const accessCode = crypto.randomBytes(5).toString('hex');
+    const paymentUrl = `https://dash-checkout.paywithflick.co/pages/${accessCode}`;
+
+    let exchangeRate = 1;
+    let settledAmount = parseFloat(createPaymentLinkDto.amount);
+
+    // Only get exchange rate if currencies are different
+    if (createPaymentLinkDto.currency_collected !== createPaymentLinkDto.currency_settled) {
+      exchangeRate = await this.exchangeRateService.getExchangeRate(
+        createPaymentLinkDto.currency_collected, 
+        createPaymentLinkDto.currency_settled
+      );
+      settledAmount = Math.round(parseFloat(createPaymentLinkDto.amount) / exchangeRate);
+    }
+
+    const amount = parseFloat(createPaymentLinkDto.amount);
+
+    const paymentPage = this.paymentPageRepository.create({
+      access_code: accessCode, 
+      paymentUrl: paymentUrl,
+      currency: createPaymentLinkDto.currency_collected,
+      currency_collected: createPaymentLinkDto.currency_collected,
+      exchange_rate: exchangeRate,
+      settled_amount: settledAmount,
+      amount: amount,
+      amountPayable: amount, 
+      payableAmountString: `${amount.toFixed(2)}`,
+      payableFxAmountString: `${settledAmount.toFixed(2)}`,
+      rate: exchangeRate,
+      currency_settled: createPaymentLinkDto.currency_settled,
+      description: createPaymentLinkDto.description,
+      productType: createPaymentLinkDto.product_type,
+      account: account,
+      status: 'active',
+      source: 'api',
+      isFixedAmount: true,
+      dated: new Date(),
+      CustomerCode: account.merchantCode || 'DEFAULT_CODE',
+    });
+
+    await this.paymentPageRepository.save(paymentPage);
+
+    return {
+      status: 200,
+      message: 'link generated successfully',
+      data: {
+        access_code: accessCode,
+        url: paymentUrl,
+        currency: createPaymentLinkDto.currency_collected,
+        currency_collected: createPaymentLinkDto.currency_collected,
+        exchange_rate: exchangeRate,
+        settled_amount: settledAmount,
+        amount: amount,
+        amountPayable: amount,
+        payableAmountString: `${amount.toFixed(2)}`,
+        payableFxAmountString: `${settledAmount.toFixed(2)}`,
+        rate: exchangeRate,
+        currency_settled: createPaymentLinkDto.currency_settled,
+      },
+    };
+  } catch (error) {
+    if (error instanceof HttpException) throw error;
+    console.error('Create payment link error:', error);
+    throw new HttpException('Failed to create payment link', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+ async createPaymentLink(userId: string, createPaymentLinkDto: CreatePaymentLinkDto) {
+    try {
+      const account = await this.accountRepository.findOne({
+        where: { user: { id: userId } },
+        relations: ['paymentPages'],
+      });
+      if (!account) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
+
+    
+      if (!this.exchangeRateService.isCurrencyPairSupported(
+        createPaymentLinkDto.currency_collected, 
+        createPaymentLinkDto.currency_settled
+      )) {
+        throw new HttpException('Unsupported currency pair', HttpStatus.BAD_REQUEST);
+      }
+
+      const accessCode = crypto.randomBytes(5).toString('hex');
+      const paymentUrl = `https://checkout.global.paywithflick.co/pages/${accessCode}`;
+
+      let exchangeRate = 1;
+      let settledAmount = parseFloat(createPaymentLinkDto.amount);
+
+      // Only get exchange rate and calculate if currencies are different
+      if (createPaymentLinkDto.currency_collected !== createPaymentLinkDto.currency_settled) {
+        exchangeRate = await this.exchangeRateService.getExchangeRate(
+          createPaymentLinkDto.currency_collected, 
+          createPaymentLinkDto.currency_settled
+        );
+        
+        // Simple conversion: amount * exchange rate
+        settledAmount = parseFloat(createPaymentLinkDto.amount) * exchangeRate;
+        settledAmount = Math.round(settledAmount * 100) / 100; // Round to 2 decimal places
+      }
+
+      const amount = parseFloat(createPaymentLinkDto.amount);
+
+      const paymentPage = this.paymentPageRepository.create({
+        access_code: accessCode, 
+        paymentUrl: paymentUrl,
+        currency: createPaymentLinkDto.currency_collected,
+        currency_collected: createPaymentLinkDto.currency_collected,
+        exchange_rate: exchangeRate,
+        settled_amount: settledAmount,
+        amount: amount,
+        amountPayable: amount, 
+        payableAmountString: `${amount.toFixed(2)}`,
+        payableFxAmountString: `${settledAmount.toFixed(2)}`,
+        rate: exchangeRate,
+        currency_settled: createPaymentLinkDto.currency_settled,
+        description: createPaymentLinkDto.description,
+        productType: createPaymentLinkDto.product_type,
+        account: account,
+        status: 'active',
+        source: 'api',
+        isFixedAmount: true,
+        dated: new Date(),
+        CustomerCode: account.merchantCode || 'DEFAULT_CODE',
+      });
+
+      await this.paymentPageRepository.save(paymentPage);
+
+      return {
+        statusCode: 200,
+        status: 'success',
+        message: 'link generated successfully',
+        data: {
+          access_code: accessCode,
+          url: paymentUrl,
+          currency: createPaymentLinkDto.currency_collected,
+          currency_collected: createPaymentLinkDto.currency_collected,
+          exchange_rate: exchangeRate,
+          settled_amount: settledAmount,
+          amount: amount,
+          amountPayable: amount,
+          payableAmountString: `${amount.toFixed(2)}`,
+          payableFxAmountString: `${settledAmount.toFixed(2)}`,
+          rate: exchangeRate,
+          currency_settled: createPaymentLinkDto.currency_settled,
+        },
+      };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      console.error('Create payment link error:', error);
+      throw new HttpException('Failed to create payment link', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+async getPaymentLinks(userId: string) {
+  try {
+    const account = await this.accountRepository.findOne({
+      where: { user: { id: userId } },
+      relations: ['paymentPages'],
+    });
+    if (!account) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
+
+    const paymentPages = await this.paymentPageRepository.find({
+      where: { account: { id: account.id } },
+    });
+
+    return {
+      status: 200,
+      data: paymentPages.map(page => ({
+        pageName: page.pageName,
+        checkout_settings: page.checkout_settings,
+        productType: page.productType,
+        currency_collected: page.currency_collected,
+        currency: page.currency,
+        access_code: page.access_code,
+        status: page.status,
+        source: page.source,
+        isFixedAmount: page.isFixedAmount,
+        paymentUrl: page.paymentUrl,
+        currency_settled: page.currency_settled,
+        successmsg: page.successmsg,
+        customLink: page.customLink,
+        dated: page.dated,
+        amount: page.amount,
+        redirectLink: page.redirectLink,
+        CustomerCode: page.CustomerCode,
+        description: page.description,
+        custompaymentUrl: page.custompaymentUrl,
+      })),
+    };
+  } catch (error) {
+    if (error instanceof HttpException) throw error;
+    console.error('Get payment links error:', error);
+    throw new HttpException('Failed to retrieve payment links', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
 
   async getPaymentPages0(accountId: string) {
     try {
@@ -1606,19 +1911,7 @@ async getAccount(userId: string) {
     }
   }
 
-  async getUserAccount(userId: string) {
-  const user = await this.userRepository.findOne({
-    where: { id: userId },
-    relations: ['accounts'], // important to load accounts
-  });
-
-  if (!user || !user.accounts.length) {
-    throw new HttpException('No account found for this user', HttpStatus.NOT_FOUND);
-  }
-
-  // Return the first account for simplicity
-  return user.accounts[0];
-}
+ 
 
 async getPaymentPagesByUser(userId: string) {
   // 1. Get user's account
@@ -3178,6 +3471,107 @@ async getPaymentPagesByUser(userId: string) {
   }
 }
 
+async createForeignPaymentLink(userId: string, createForeignFundChargeDto: CreateForeignFundChargeDto) {
+    try {
+      const user = await this.userRepository.findOne({ where: { id: userId } });
+      if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+      const account = await this.accountRepository.findOne({
+        where: { user: { id: userId } },
+        relations: ['paymentPages', 'wallet'],
+      });
+      if (!account || !account.wallet) throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
+
+      const accessCode = crypto.randomBytes(5).toString('hex');
+      const paymentUrl = `https://checkout.global.paywithflick.co/pages/${accessCode}`;
+      let charges = 0;
+      let exchangeRate = 1;
+      let settledAmount = parseFloat(createForeignFundChargeDto.amount);
+      const balanceType = 'collection';
+
+      if (createForeignFundChargeDto.currency_collected !== createForeignFundChargeDto.currency_settled) {
+        throw new HttpException('Unsupported currency pair', HttpStatus.BAD_REQUEST);
+      }
+
+      const amount = parseFloat(createForeignFundChargeDto.amount);
+      const transactionid = `flick-${crypto.randomUUID()}`;
+
+      const paymentPage = this.paymentPageRepository.create({
+        access_code: accessCode, 
+        paymentUrl: paymentUrl,
+        url: paymentUrl,
+        currency: createForeignFundChargeDto.currency_collected,
+        currency_collected: createForeignFundChargeDto.currency_collected,
+        exchange_rate: exchangeRate,
+        settled_amount: settledAmount,
+        amount: amount,
+        amountPayable: amount, 
+        payableAmountString: `${amount.toFixed(2)}`,
+        payableFxAmountString: `${settledAmount.toFixed(2)}`,
+        rate: exchangeRate,
+        currency_settled: createForeignFundChargeDto.currency_settled,
+        account: account,
+        status: 'active',
+        source: 'api',
+        isFixedAmount: true,
+        dated: new Date(),
+        CustomerCode: account.merchantCode || 'DEFAULT_CODE',
+      });
+
+      await this.paymentPageRepository.save(paymentPage);
+      
+ const transaction = this.transactionRepository.create({
+      eventname: 'Charge',
+      transtype: 'credit',
+      total_amount: amount + charges,
+      settled_amount: amount,
+      fee_charged: charges,
+      currency_settled: 'NGN',
+      dated: new Date(),
+      status: 'pending',
+      initiator: user.email,
+      type: 'Pending',
+      transactionid,
+      narration: 'Foreign Charge initiated',
+      balance_before: 0,
+      balance_after: 0,
+      channel: 'direct',
+      email: user.email,
+      wallet: account.wallet,
+      balanceType: balanceType   
+      
+    });
+
+    await this.transactionRepository.save(transaction);
+    console.log("SAVE......:", this.transactionRepository)
+
+
+
+      return {
+        statusCode: 200,
+        status: 'success',
+        message: 'Transaction created successfully',
+        data: {
+          transactionId: transactionid,
+          access_code: accessCode,
+          url: paymentUrl,
+          currency: createForeignFundChargeDto.currency_collected,
+          currency_collected: createForeignFundChargeDto.currency_collected,
+          exchange_rate: exchangeRate,
+          settled_amount: settledAmount,
+          amount: amount,
+          amountPayable: amount,
+          payableAmountString: `${amount.toFixed(2)}`,
+          payableFxAmountString: `${settledAmount.toFixed(2)}`,
+          rate: exchangeRate,
+          currency_settled: createForeignFundChargeDto.currency_settled,
+        },
+      };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      console.error('Create payment link error:', error);
+      throw new HttpException('Failed to create payment link', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 
 async getBeneficiaries(userId: string, accountId: string) {
   try {
