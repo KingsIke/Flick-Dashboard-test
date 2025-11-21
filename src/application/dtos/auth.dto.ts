@@ -747,3 +747,9 @@ export class CreateForeignFundChargeDto {
   @IsOptional()
   call_source?: string;
 }
+
+export class ProcessForeignPaymentDto {
+  @IsString()
+  @IsNotEmpty()
+  accessCode: string;
+}
