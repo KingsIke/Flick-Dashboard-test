@@ -4036,26 +4036,10 @@ export class BusinessService {
     throw new HttpException('Failed to create payment link', HttpStatus.INTERNAL_SERVER_ERROR);
   }
 }
-  async processForeignPayment(userId: string, accessCode: ProcessForeignPaymentDto) {
+  async processForeignPayment(accessCode: ProcessForeignPaymentDto) {
   try {
 
-    const user = await this.userRepository.findOne({ 
-      where: { id: userId },
-      relations: ['accounts', 'accounts.wallet']
-    });
 
-    if (!user) {
-      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
-    }
-
-    if (!user.accounts || user.accounts.length === 0) {
-      throw new HttpException('No account found for user', HttpStatus.NOT_FOUND);
-    }
-
-    // const account = user.accounts[0];
-    // if (!account.wallet) {
-    //   throw new HttpException('Wallet not found for account', HttpStatus.NOT_FOUND);
-    // }
 
     const paymentPage = await this.paymentPageRepository.findOne({
       where: { 
@@ -4069,12 +4053,7 @@ export class BusinessService {
     if (!paymentPage) {
       throw new HttpException('Payment link not found for this user', HttpStatus.NOT_FOUND);
     }
-     if (paymentPage.account.user.id !== userId) {
-      throw new HttpException(
-        'Payment link not found for this user',
-        HttpStatus.NOT_FOUND
-      );
-    }
+  
      const account = paymentPage.account;
     const wallet = account.wallet;
 
@@ -4085,14 +4064,13 @@ export class BusinessService {
     const amount = paymentPage.amount;
     const currency = paymentPage.currency_settled;
 
-    // Find the related transaction by matching amount, currency, and wallet
     const transaction = await this.transactionRepository.findOne({
       where: { 
         wallet: { id: wallet.id },
         settled_amount: amount,
         currency_settled: currency,
         status: 'pending',
-        email: user.email
+        email: paymentPage.account.user.email,
       },
       relations: ['wallet'],
       order: { dated: 'DESC' }
@@ -4115,8 +4093,8 @@ export class BusinessService {
             amountPayable: amount,
             payableFxAmountString: amount,
             settled_amount: amount,
-    business_name: user.name,
-  senderEmail: user.email,
+    business_name: account.user.name,
+  senderEmail: paymentPage.account.user.email,
   transactionId: transaction.transactionid,
     
       },

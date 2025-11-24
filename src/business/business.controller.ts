@@ -180,10 +180,10 @@ async getBeneficiaries(@Request() req, @Body('accountId') accountId: string) {
   async createForeignPaymentLink(@Request() req, @Body() createForeignFundChargeDto: CreateForeignFundChargeDto) {
     return this.businessService.createForeignPaymentLink(req.user.sub, createForeignFundChargeDto);
   }
-  @UseGuards(JwtAuthGuard)
+  // @UseGuards(JwtAuthGuard)
   @Post('foreign-pay-link-process')
   async processForeignPayment(@Request() req, @Body() accessCode: ProcessForeignPaymentDto) {
-    return this.businessService.processForeignPayment(req.user.sub, accessCode);
+    return this.businessService.processForeignPayment( accessCode);
   }
 
   
