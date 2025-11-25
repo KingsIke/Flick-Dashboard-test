@@ -1791,7 +1791,8 @@ export class BusinessService {
         throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
 
       const accessCode = crypto.randomBytes(5).toString('hex');
-      const paymentUrl = `https://dash-checkout.paywithflick.co/pages/${accessCode}`;
+
+      const paymentUrl = `https://flick-checkout-sandbox.vercel.app/pages/${accessCode}`;
 
       const exchangeRate = await this.exchangeRateService.getExchangeRate(
         createPaymentLinkDto.currency_collected,
@@ -1967,6 +1968,7 @@ export class BusinessService {
       }
 
       const accessCode = crypto.randomBytes(5).toString('hex');
+      
       const paymentUrl = `https://flick-checkout-sandbox.vercel.app/pages/${accessCode}`;
 
       let exchangeRate = 1;
@@ -3825,7 +3827,7 @@ export class BusinessService {
         throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
 
       const accessCode = crypto.randomBytes(5).toString('hex');
-      const paymentUrl = `https://checkout.global.paywithflick.co/pages/${accessCode}`;
+      const paymentUrl = `https://flick-checkout-sandbox.vercel.app//pages/${accessCode}`;
       let charges = 0;
       let exchangeRate = 1;
       let settledAmount = parseFloat(createForeignFundChargeDto.amount);
@@ -3952,12 +3954,9 @@ export class BusinessService {
     // ---------------------------------------------------
     // 3. Generate access code + URL
     // ---------------------------------------------------
-    const accessCode = crypto.randomBytes(10).toString('hex');
-    const paymentUrl = `https://flick-checkout-sandbox.vercel.app/${accessCode}`;
+    const accessCode = crypto.randomBytes(6).toString('hex');
+    const paymentUrl = `https://flick-checkout-sandbox.vercel.app/page/${accessCode}`;
     
-// this one still dey return chckout.global.paywithflick.co/pages/:id
-// instead of 
-// https://flick-checkout-sandbox.vercel.app/pages/:id
     const amount = parseFloat(createForeignFundChargeDto.amount);
     const exchangeRate = 1;
     const settledAmount = amount;
