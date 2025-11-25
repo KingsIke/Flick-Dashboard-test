@@ -927,7 +927,7 @@ export class BusinessService {
         message: 'Transaction created successfully',
         data: {
           transactionId,
-          url: `https://checkout.global.paywithflick.co/pages/${crypto.randomBytes(8).toString('base64url')}`,
+          url: `https://flick-checkout-sandbox.vercel.app/pages/${crypto.randomBytes(8).toString('base64url')}`,
           currency,
           currency_collected: currency,
           nairaEquivalent: 0,
@@ -1967,7 +1967,7 @@ export class BusinessService {
       }
 
       const accessCode = crypto.randomBytes(5).toString('hex');
-      const paymentUrl = `https://checkout.global.paywithflick.co/pages/${accessCode}`;
+      const paymentUrl = `https://flick-checkout-sandbox.vercel.app/pages/${accessCode}`;
 
       let exchangeRate = 1;
       let settledAmount = parseFloat(createPaymentLinkDto.amount);
@@ -3953,8 +3953,11 @@ export class BusinessService {
     // 3. Generate access code + URL
     // ---------------------------------------------------
     const accessCode = crypto.randomBytes(10).toString('hex');
-    const paymentUrl = `https://checkout.global.paywithflick.co/pages/${accessCode}`;
-
+    const paymentUrl = `https://flick-checkout-sandbox.vercel.app/${accessCode}`;
+    
+// this one still dey return chckout.global.paywithflick.co/pages/:id
+// instead of 
+// https://flick-checkout-sandbox.vercel.app/pages/:id
     const amount = parseFloat(createForeignFundChargeDto.amount);
     const exchangeRate = 1;
     const settledAmount = amount;

@@ -8,7 +8,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
   app.enableCors({
-    origin: ['http://localhost:3000', 'https://flick-merchant-test-mnik.vercel.app', 'https://flick-checkout-sandbox.vercel.app/'],
+    origin: ['http://localhost:3000', 'https://flick-merchant-test-mnik.vercel.app'],
     credentials: true, 
   });
   await app.listen(3000);
