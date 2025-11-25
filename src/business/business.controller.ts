@@ -14,7 +14,7 @@ import {
 import { AuthService } from '../auth/auth';
 import { BankService } from '../infrastructure/services/banks/bank.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { CardChargeDto, ConvertAndFundDto, CreateChargeDto, CreateForeignFundChargeDto, CreatePaymentLinkDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanChargeDto, NubanCreateMerchantDto, ProcessForeignPaymentDto, SaveBeneficiaryDto, TransactionFilterDto, USDPayoutDto } from '../application/dtos/auth.dto';
+import { CardChargeDto, ConvertAndFundDto, CreateChargeDto, CreateForeignFundChargeDto, CreatePaymentLinkDto, FundPayoutBalanceDto, FundWalletDto, NGNCompletePayoutDto, NGNPayoutDto, NubanChargeDto, NubanCreateMerchantDto, ProcessForeignPaymentDto, SaveBeneficiaryDto, SendPaymentOtpDto, TransactionFilterDto, USDPayoutDto, VerifyPaymentOtpDto } from '../application/dtos/auth.dto';
 import { BusinessService } from './business';
 
 
@@ -184,6 +184,16 @@ async getBeneficiaries(@Request() req, @Body('accountId') accountId: string) {
   @Post('foreign-pay-link-process')
   async processForeignPayment(@Request() req, @Body() accessCode: ProcessForeignPaymentDto) {
     return this.businessService.processForeignPayment( accessCode);
+  }
+
+  @Post('foreign-pay-link-otp')
+  async foreignSendPaymentOtp(@Request() req, @Body() sendOtpDto: SendPaymentOtpDto) {
+    return this.businessService.foreignSendPaymentOtp( sendOtpDto);
+  }
+
+  @Post('foreign-pay-link-otp-verify')
+  async ForeignVerifyPaymentOtp(@Request() req, @Body() verifyOtpDto: VerifyPaymentOtpDto) {
+    return this.businessService.ForeignVerifyPaymentOtp( verifyOtpDto);
   }
 
   

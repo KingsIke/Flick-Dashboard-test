@@ -17,8 +17,10 @@ import {
   NubanCreateMerchantDto,
   ProcessForeignPaymentDto,
   SaveBeneficiaryDto,
+  SendPaymentOtpDto,
   TransactionFilterDto,
   USDPayoutDto,
+  VerifyPaymentOtpDto,
 } from '../application/dtos/auth.dto';
 import { AccountRepository } from '../infrastructure/repositories/account.repository';
 import { TransactionRepository } from '../infrastructure/repositories/transaction.repository';
@@ -26,6 +28,7 @@ import { UserRepository } from '../infrastructure/repositories/user.repository';
 import { WalletRepository } from '../infrastructure/repositories/wallet.repository';
 import { EmailService } from '../infrastructure/services/email/email.service';
 import * as crypto from 'crypto';
+import * as bcrypt from 'bcrypt';
 import { PaymentPageRepository } from '../infrastructure/repositories/payment.repository';
 import { TokenEncryptionUtil } from '../config/utils/TokenEncryptionUtil';
 import { EncryptionUtil } from '../config/utils/EncryptionUtil';
@@ -3929,19 +3932,13 @@ export class BusinessService {
   createForeignFundChargeDto: CreateForeignFundChargeDto,
 ) {
   try {
-    // ---------------------------------------------------
-    // 1. Get user
-    // ---------------------------------------------------
+
     const user = await this.userRepository.findOne({
       where: { id: userId },
     });
     if (!user)
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);
 
-    // ---------------------------------------------------
-    // 2. Get account WITH ID + WALLET only
-    //    (Do not load huge relations)
-    // ---------------------------------------------------
     const account = await this.accountRepository.findOne({
       where: { user: { id: userId } },
       select: ['id', 'merchantCode'],
@@ -3951,9 +3948,7 @@ export class BusinessService {
     if (!account || !account.wallet)
       throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
 
-    // ---------------------------------------------------
-    // 3. Generate access code + URL
-    // ---------------------------------------------------
+
     const accessCode = crypto.randomBytes(6).toString('hex');
     const paymentUrl = `https://flick-checkout-sandbox.vercel.app/pages/${accessCode}`;
     
@@ -4110,12 +4105,7 @@ export class BusinessService {
 }
 async processForeignPayment1(userId: string, accessCode: ProcessForeignPaymentDto) {
   try {
-  console.log('SEARCHING FOR ACCESS CODE:', accessCode);
-console.log('EXACT VALUE PASSED:', JSON.stringify(accessCode));
-console.log('ALL EXISTING CODES:', (await this.paymentPageRepository.find()).map(p => p.access_code));
-    // ---------------------------------------------------
-    // 1. Load user with accounts & wallets
-    // ---------------------------------------------------
+
     const user = await this.userRepository.findOne({
       where: { id: userId },
       relations: ['accounts', 'accounts.wallet'],
@@ -4193,6 +4183,137 @@ console.log('ALL EXISTING CODES:', (await this.paymentPageRepository.find()).map
       : new HttpException('Failed to process foreign payment', HttpStatus.INTERNAL_SERVER_ERROR);
   }
 }
+
+async foreignSendPaymentOtp(sendOtpDto: SendPaymentOtpDto) {
+  try {
+    const paymentPage = await this.paymentPageRepository.findOne({
+      where: { 
+        access_code: sendOtpDto.accessCode,
+      },
+      relations: ['account', 'account.user'],
+    });
+
+    if (!paymentPage) {
+      throw new HttpException('Invalid access code', HttpStatus.NOT_FOUND);
+    }
+
+     if (paymentPage.isOtpLocked) {
+    throw new HttpException('Too many failed attempts. Contact support.', HttpStatus.FORBIDDEN);
+  }
+
+  if (paymentPage.otpVerifiedAt) {
+    throw new HttpException('OTP already verified', HttpStatus.BAD_REQUEST);
+  }
+
+    const otp = crypto.randomInt(100000, 999999).toString();
+
+    const expiresAt = this.getOtpExpiry();
+    const to = sendOtpDto.email || paymentPage.account.user.email;
+
+ paymentPage.otp = await bcrypt.hash(otp, 10);
+  paymentPage.otpExpiresAt = expiresAt;
+  paymentPage.otpAttempts = 0; 
+  await this.paymentPageRepository.save(paymentPage);
+
+
+    await this.emailService.sendVerificationEmail(
+     to,
+      otp, 
+      "user"
+    );
+
+    return {
+      statusCode: 200,
+      status: 'success',
+      message: 'OTP sent successfully to your email',
+      data: {
+        email: sendOtpDto.email,
+        accessCode: sendOtpDto.accessCode,
+        expiresIn: '30 minutes',
+      },
+    };
+  } catch (error) {
+    console.error('Send payment OTP error:', error);
+    throw error instanceof HttpException
+      ? error
+      : new HttpException('Failed to send OTP', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+
+async ForeignVerifyPaymentOtp(verifyOtpDto: VerifyPaymentOtpDto) {
+  try {
+    const paymentPage = await this.paymentPageRepository.findOne({
+      where: { 
+        access_code: verifyOtpDto.accessCode,
+      },
+      relations: ['account', 'account.wallet'],
+    });
+
+    if (!paymentPage) {
+      throw new HttpException('Invalid access code', HttpStatus.NOT_FOUND);
+    }
+
+    if (paymentPage.isOtpLocked) {
+      throw new HttpException('Too many failed attempts. Contact support.', HttpStatus.FORBIDDEN);
+    }
+
+    if (paymentPage.otpExpiresAt && paymentPage.otpExpiresAt < new Date()) {
+      throw new HttpException('OTP has expired', HttpStatus.BAD_REQUEST);
+    }
+
+    const isOtpValid = await bcrypt.compare(verifyOtpDto.otp, paymentPage.otp || '');
+
+    if (!isOtpValid) {
+      paymentPage.otpAttempts = (paymentPage.otpAttempts || 0) + 1;
+      if (paymentPage.otpAttempts >= 3) {
+        paymentPage.isOtpLocked = true;
+      }   
+      await this.paymentPageRepository.save(paymentPage);
+      throw new HttpException('Invalid OTP', HttpStatus.BAD_REQUEST);
+    }
+
+    paymentPage.otpVerifiedAt = new Date();
+    await this.paymentPageRepository.save(paymentPage);
+
+    const wallet = paymentPage.account.wallet;
+    if (!wallet) {
+      throw new HttpException('Wallet not found for account', HttpStatus.NOT_FOUND);
+    }
+
+    let targetBalance = wallet.balances.find(
+      (b) => b.currency === paymentPage.currency_settled,
+    );
+    if (!targetBalance) {
+      targetBalance = {
+        currency: paymentPage.currency_settled,
+        api_balance: 0, 
+        payout_balance: 0,
+        collection_balance: 0,
+      };
+      wallet.balances.push(targetBalance);
+    }
+    targetBalance.payout_balance += paymentPage.amount;
+    targetBalance.collection_balance += paymentPage.amount;
+    await this.walletRepository.save(wallet);
+
+    return {
+      statusCode: 200,
+      status: 'success',
+      message: 'OTP verified successfully',
+      data: {
+        accessCode: verifyOtpDto.accessCode,
+        amountAdded: paymentPage.amount,
+        currency: paymentPage.currency_settled,
+      },
+    };
+  } catch (error) {
+    console.error('Verify payment OTP error:', error);
+    throw error instanceof HttpException
+      ? error
+      : new HttpException('Failed to verify OTP', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+
   async getBeneficiaries(userId: string, accountId: string) {
     try {
       const account = await this.accountRepository.findOne({

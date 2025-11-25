@@ -91,7 +91,23 @@ export class PaymentPage {
 
   @Column({ nullable: true })
   custompaymentUrl: string;
+  
+  @Column({ nullable: true })
+  otp?: string;                   
 
+  @Column({ type: 'timestamp', nullable: true })
+  otpExpiresAt?: Date;         
+
+  @Column({ default: 0 })
+  otpAttempts: number;        
+
+  @Column({ type: 'timestamp', nullable: true })
+  otpVerifiedAt?: Date;
+
+  @Column({ default: false })
+  isOtpLocked: boolean;
+
+  
     @Column({ type: 'jsonb', nullable: true })
   productType: string[];
 

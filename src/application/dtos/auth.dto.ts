@@ -753,3 +753,22 @@ export class ProcessForeignPaymentDto {
   @IsNotEmpty()
   accessCode: string;
 }
+
+export class SendPaymentOtpDto {
+  @IsString()
+  @IsNotEmpty()
+  accessCode: string;
+  
+    @IsEmail()
+  email: string;
+}
+
+export class VerifyPaymentOtpDto{
+  @IsString()
+  @IsNotEmpty()
+  accessCode: string;
+
+  @IsString()
+  @IsNotEmpty()
+  otp: string;
+}

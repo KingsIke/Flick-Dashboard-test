@@ -12,6 +12,7 @@ export class EmailService {
     verification: 'https://urc9a6l2y8.execute-api.us-east-2.amazonaws.com/production/mail/test_email_verification',
     passwordReset: 'https://urc9a6l2y8.execute-api.us-east-2.amazonaws.com/production/mail/test_email_reset',
     payout: 'https://urc9a6l2y8.execute-api.us-east-2.amazonaws.com/production/mail/test_email_payout',
+    foreign_fund: 'https://urc9a6l2y8.execute-api.us-east-2.amazonaws.com/production/mail/test_email_foreign_collection',
   };
 
   constructor(private readonly configService: ConfigService) {}
@@ -49,6 +50,14 @@ export class EmailService {
     await this.sendEmailRequest(this.apiEndpoints.payout, payload, `payout OTP ${otp}`, to);
   }
 
+  // 🔹 Send Foreign Fund Collection OTP Email
+  async sendForeignFundCollectionOtp(
+    to: string,
+    otp: string,
+  ): Promise<void> {
+    const payload = { to, otp };
+    await this.sendEmailRequest(this.apiEndpoints.foreign_fund, payload, `Payment OTP ${otp}`, to);
+  }
   // 🔹 Centralized API Caller
   private async sendEmailRequest(endpoint: string, payload: any, label: string, recipient: string): Promise<void> {
     try {
