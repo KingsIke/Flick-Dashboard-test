@@ -3955,7 +3955,7 @@ export class BusinessService {
     // 3. Generate access code + URL
     // ---------------------------------------------------
     const accessCode = crypto.randomBytes(6).toString('hex');
-    const paymentUrl = `https://flick-checkout-sandbox.vercel.app/page/${accessCode}`;
+    const paymentUrl = `https://flick-checkout-sandbox.vercel.app/pages/${accessCode}`;
     
     const amount = parseFloat(createForeignFundChargeDto.amount);
     const exchangeRate = 1;
