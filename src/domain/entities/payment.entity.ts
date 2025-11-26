@@ -107,7 +107,11 @@ export class PaymentPage {
   @Column({ default: false })
   isOtpLocked: boolean;
 
-  
+  @Column({ default: false })
+isUsed: boolean;
+
+
+
     @Column({ type: 'jsonb', nullable: true })
   productType: string[];
 

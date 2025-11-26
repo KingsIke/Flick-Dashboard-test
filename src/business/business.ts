@@ -39,6 +39,8 @@ import { BeneficiaryRepository } from '../infrastructure/repositories/beneficiar
 import { ExchangeRateService } from '../infrastructure/services/exchange-rate/exchange-rate.service';
 import { Beneficiary } from '../domain/entities/beneficiary.entity';
 import { Transaction } from 'src/domain/entities/transaction.entity';
+import { DataSource } from 'typeorm';
+import { PaymentPage } from 'src/domain/entities/payment.entity';
 
 @Injectable()
 export class BusinessService {
@@ -56,6 +58,8 @@ export class BusinessService {
     private readonly countryRepository: CountryRepository,
     private readonly beneficiaryRepository: BeneficiaryRepository,
     private readonly exchangeRateService: ExchangeRateService,
+        private readonly dataSource: DataSource,  
+    
   ) {}
 
   async createCharge(userId: string, chargeDto: CreateChargeDto) {
@@ -4033,7 +4037,7 @@ export class BusinessService {
     throw new HttpException('Failed to create payment link', HttpStatus.INTERNAL_SERVER_ERROR);
   }
 }
-  async processForeignPayment(accessCode: ProcessForeignPaymentDto) {
+  async processForeignPayment0(accessCode: ProcessForeignPaymentDto) {
   try {
 
 
@@ -4183,6 +4187,91 @@ async processForeignPayment1(userId: string, accessCode: ProcessForeignPaymentDt
       : new HttpException('Failed to process foreign payment', HttpStatus.INTERNAL_SERVER_ERROR);
   }
 }
+async processForeignPayment(accessCode: ProcessForeignPaymentDto) {
+  try {
+    const paymentPage = await this.paymentPageRepository.findOne({
+      where: {
+        access_code: accessCode.accessCode,
+      },
+      relations: ['account', 'account.user', 'account.wallet'],
+    });
+
+    console.log('Payment Page:', paymentPage);
+
+    if (!paymentPage) {
+      throw new HttpException('Payment link not found for this user', HttpStatus.NOT_FOUND);
+    }
+
+    if (paymentPage.status === 'successful') {
+      return {
+        statusCode: 200,
+        status: 'success',
+        message: 'Payment already completed',
+        data: {
+          alreadyCompleted: true,
+          completedAt: paymentPage.otpVerifiedAt,
+          amount: paymentPage.amount,
+          currency: paymentPage.currency_settled,
+          business_name: paymentPage.account.user.name,
+        },
+      };
+    }
+
+    if (paymentPage.status !== 'active') {
+      throw new HttpException('Payment link is no longer valid', HttpStatus.BAD_REQUEST);
+    }
+
+    const account = paymentPage.account;
+    const wallet = account.wallet;
+
+    if (!wallet) {
+      throw new HttpException('Wallet not found for account', HttpStatus.NOT_FOUND);
+    }
+
+    const amount = paymentPage.amount;
+    const currency = paymentPage.currency_settled;
+
+    const transaction = await this.transactionRepository.findOne({
+      where: {
+        wallet: { id: wallet.id },
+        settled_amount: amount,
+        currency_settled: currency,
+        status: 'pending',
+        email: paymentPage.account.user.email,
+      },
+      relations: ['wallet'],
+      order: { dated: 'DESC' }
+    });
+
+    if (!transaction) {
+      throw new HttpException('Pending transaction not found for this payment', HttpStatus.NOT_FOUND);
+    }
+
+    return {
+      statusCode: 200,
+      status: 'success',
+      message: 'Foreign payment processed successfully',
+      data: {
+        currency_collected: currency,
+        access_code: accessCode.accessCode,
+        payableAmountString: amount.toString(),
+        amount: amount,
+        exchange_rate: 1,
+        amountPayable: amount,
+        payableFxAmountString: amount,
+        settled_amount: amount,
+        business_name: account.user.name,
+        senderEmail: paymentPage.account.user.email,
+        transactionId: transaction.transactionid,
+      },
+    };
+  } catch (error) {
+    console.error('Process foreign payment error:', error);
+    throw error instanceof HttpException
+      ? error
+      : new HttpException('Failed to process foreign payment', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
 
 async foreignSendPaymentOtp(sendOtpDto: SendPaymentOtpDto) {
   try {
@@ -4200,6 +4289,9 @@ async foreignSendPaymentOtp(sendOtpDto: SendPaymentOtpDto) {
      if (paymentPage.isOtpLocked) {
     throw new HttpException('Too many failed attempts. Contact support.', HttpStatus.FORBIDDEN);
   }
+    if (paymentPage.status === 'successful') {
+      throw new HttpException('Payment already completed', HttpStatus.BAD_REQUEST);
+    }
 
   if (paymentPage.otpVerifiedAt) {
     throw new HttpException('OTP already verified', HttpStatus.BAD_REQUEST);
@@ -4240,7 +4332,7 @@ async foreignSendPaymentOtp(sendOtpDto: SendPaymentOtpDto) {
   }
 }
 
-async ForeignVerifyPaymentOtp(verifyOtpDto: VerifyPaymentOtpDto) {
+async ForeignVerifyPaymentOtp0(verifyOtpDto: VerifyPaymentOtpDto) {
   try {
     const paymentPage = await this.paymentPageRepository.findOne({
       where: { 
@@ -4313,7 +4405,104 @@ async ForeignVerifyPaymentOtp(verifyOtpDto: VerifyPaymentOtpDto) {
       : new HttpException('Failed to verify OTP', HttpStatus.INTERNAL_SERVER_ERROR);
   }
 }
+async ForeignVerifyPaymentOtp(verifyOtpDto: VerifyPaymentOtpDto) {
+  const queryRunner = this.dataSource.createQueryRunner();
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
 
+  try {
+    const paymentPage = await queryRunner.manager.findOne(PaymentPage, {
+      where: { access_code: verifyOtpDto.accessCode },
+      relations: ['account', 'account.wallet'],
+      lock: { mode: 'pessimistic_write' }, // Prevent race conditions
+    });
+
+    if (!paymentPage) {
+      throw new HttpException('Invalid access code', HttpStatus.NOT_FOUND);
+    }
+
+    // Already completed? → Block reuse
+    if (paymentPage.status === 'successful') {
+      throw new HttpException('Payment already completed', HttpStatus.BAD_REQUEST);
+    }
+
+    if (paymentPage.isOtpLocked) {
+      throw new HttpException('Too many failed attempts. Contact support.', HttpStatus.FORBIDDEN);
+    }
+
+    if (!paymentPage.otp || !paymentPage.otpExpiresAt || paymentPage.otpExpiresAt < new Date()) {
+      throw new HttpException('OTP has expired', HttpStatus.BAD_REQUEST);
+    }
+
+    const isOtpValid = await bcrypt.compare(verifyOtpDto.otp, paymentPage.otp);
+    if (!isOtpValid) {
+      paymentPage.otpAttempts = (paymentPage.otpAttempts || 0) + 1;
+      if (paymentPage.otpAttempts >= 3) {
+        paymentPage.isOtpLocked = true;
+      }
+      await queryRunner.manager.save(paymentPage);
+      await queryRunner.commitTransaction();
+      throw new HttpException('Invalid OTP', HttpStatus.BAD_REQUEST);
+    }
+
+    // OTP is correct → Credit wallet
+    const wallet = paymentPage.account.wallet;
+    if (!wallet) {
+      throw new HttpException('Wallet not found', HttpStatus.NOT_FOUND);
+    }
+
+    let targetBalance = wallet.balances.find(b => b.currency === paymentPage.currency_settled);
+    if (!targetBalance) {
+      targetBalance = {
+        currency: paymentPage.currency_settled,
+        api_balance: 0,
+        payout_balance: 0,
+        collection_balance: 0,
+      };
+      wallet.balances.push(targetBalance);
+    }
+
+    // Add the amount
+    targetBalance.collection_balance += paymentPage.amount;
+    targetBalance.payout_balance += paymentPage.amount; // or whichever you use
+
+    // Mark payment page as COMPLETED
+    paymentPage.status = 'successful';
+    paymentPage.otpVerifiedAt = new Date();
+
+    // Clear sensitive OTP data
+    paymentPage.otp = null;
+    paymentPage.otpExpiresAt = null;
+    paymentPage.otpAttempts = 0;
+    paymentPage.isOtpLocked = false;
+
+    // Save both in transaction
+    await queryRunner.manager.save(wallet);
+    await queryRunner.manager.save(paymentPage);
+
+    await queryRunner.commitTransaction();
+
+    return {
+      statusCode: 200,
+      status: 'success',
+      message: 'Payment completed successfully! Funds added to your wallet.',
+      data: {
+        access200: verifyOtpDto.accessCode,
+        amountAdded: paymentPage.amount,
+        currency: paymentPage.currency_settled,
+        completed: true,
+      },
+    };
+  } catch (error) {
+    await queryRunner.rollbackTransaction();
+    console.error('Verify payment OTP error:', error);
+    throw error instanceof HttpException
+      ? error
+      : new HttpException('Failed to verify OTP', HttpStatus.INTERNAL_SERVER_ERROR);
+  } finally {
+    await queryRunner.release();
+  }
+}
   async getBeneficiaries(userId: string, accountId: string) {
     try {
       const account = await this.accountRepository.findOne({
