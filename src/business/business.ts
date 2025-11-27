@@ -1509,7 +1509,7 @@ export class BusinessService {
     }
   }
 
-  async getTransactions(userId: string, filterDto: TransactionFilterDto) {
+  async getTransactions0(userId: string, filterDto: TransactionFilterDto) {
     const { startDate, endDate, status, type, currency } = filterDto;
 
     const account = await this.accountRepository.findOne({
@@ -1591,6 +1591,109 @@ export class BusinessService {
       data: mapped,
     };
   }
+
+
+
+
+async getTransactions(userId: string, filterDto: TransactionFilterDto) {
+  const { startDate, endDate, status, type, currency } = filterDto;
+
+  // 🔹 Normalize DB status into one standard
+  type TransactionStatus = 'Pending' | 'Success' | 'Failed' | 'Complete';
+  const normalizeStatus = (s?: string): TransactionStatus => {
+    if (!s) return 'Pending';
+
+    const val = s.toLowerCase();
+
+    if (val.includes('success')) return 'Success';
+    if (val.includes('pending')) return 'Pending';
+    if (val.includes('fail')) return 'Failed';
+    if (val.includes('complete')) return 'Complete';
+
+    return 'Pending';
+  };
+
+  const account = await this.accountRepository.findOne({
+    where: { user: { id: userId } },
+    relations: ['wallet', 'wallet.transactions'],
+  });
+
+  if (!account || !account.wallet) {
+    return {
+      message: 'No transactions available',
+      stats: {
+        range: 'all time',
+        currency: currency || 'NGN',
+        total_inflow_amount: 0,
+        total_outflow_amount: 0,
+        total_transaction_no: '0',
+      },
+      data: [],
+    };
+  }
+
+  let transactions = account.wallet.transactions;
+
+  // 🔹 Remove card pending
+  transactions = transactions.filter((tx) => tx.type !== 'CardPending');
+
+  // 🔹 Filter by date
+  const start = startDate ? new Date(startDate) : new Date('2024-01-01');
+  const end = endDate ? new Date(endDate) : new Date();
+
+  transactions = transactions.filter(
+    (tx) => tx.dated >= start && tx.dated <= end,
+  );
+
+  // 🔹 STATUS FILTER - using normalized value
+  if (status?.length) {
+    const allowedStatusSet = new Set(status);
+    
+    transactions = transactions.filter((tx) =>
+      allowedStatusSet.has(normalizeStatus(tx.status)),
+    );
+  }
+
+  // 🔹 Type filter
+  if (type) {
+    transactions = transactions.filter((tx) => tx.type === type);
+  }
+
+  // 🔹 Currency filter
+  if (currency) {
+    transactions = transactions.filter(
+      (tx) => tx.currency_settled?.toUpperCase() === currency.toUpperCase(),
+    );
+  }
+
+  // 🔹 Format result
+  const mapped = transactions.map((tx) => ({
+    ...tx,
+    status: normalizeStatus(tx.status),
+    dated_ago: this.getTimeAgo(tx.dated),
+    total_amount: parseFloat(tx.total_amount.toString()),
+    settled_amount: parseFloat(tx.settled_amount.toString()),
+    balance_before: parseFloat(tx.balance_before.toString()),
+    balance_after: parseFloat(tx.balance_after.toString()),
+  }));
+
+  return {
+    message: 'Filtered transactions fetched successfully',
+    stats: {
+      range: startDate && endDate ? `${startDate} to ${endDate}` : 'all time',
+      currency: currency || 'NGN',
+      total_inflow_amount: mapped
+        .filter((tx) => tx.type === 'Inflow')
+        .reduce((sum, tx) => sum + tx.total_amount, 0),
+      total_outflow_amount: mapped
+        .filter((tx) => tx.type === 'Outflow')
+        .reduce((sum, tx) => sum + tx.total_amount, 0),
+      total_transaction_no: mapped.length.toString(),
+    },
+    data: mapped,
+  };
+}
+
 
   async getAccount(userId: string) {
     try {
@@ -4510,15 +4613,31 @@ async ForeignVerifyPaymentOtp(verifyOtpDto: VerifyPaymentOtpDto) {
   await queryRunner.startTransaction();
 
   try {
-    const paymentPage = await queryRunner.manager.findOne(PaymentPage, {
-      where: { access_code: verifyOtpDto.accessCode },
-      relations: ['account', 'account.wallet', 'account.user'],
-      lock: { mode: 'pessimistic_write' },
-    });
+    // const paymentPage = await queryRunner.manager.findOne(PaymentPage, {
+    //   where: { access_code: verifyOtpDto.accessCode },
+    //   relations: ['account', 'account.wallet', 'account.user'],
+    //   lock: { mode: 'pessimistic_write' },
+    // });
 
-    if (!paymentPage) {
-      throw new HttpException('Invalid access code', HttpStatus.NOT_FOUND);
-    }
+    // if (!paymentPage) {
+    //   throw new HttpException('Invalid access code', HttpStatus.NOT_FOUND);
+    // }
+    // STEP 1: Lock only the PaymentPage row
+let paymentPage = await queryRunner.manager.findOne(PaymentPage, {
+  where: { access_code: verifyOtpDto.accessCode },
+  lock: { mode: 'pessimistic_write' },
+});
+
+if (!paymentPage) {
+  throw new HttpException('Invalid access code', HttpStatus.NOT_FOUND);
+}
+
+// STEP 2: Load relations separately (NO LOCK)
+paymentPage = await queryRunner.manager.findOne(PaymentPage, {
+  where: { id: paymentPage.id },
+  relations: ['account', 'account.wallet', 'account.user'],
+});
+
 
     if (paymentPage.status === 'successful') {
       throw new HttpException('Payment already completed', HttpStatus.BAD_REQUEST);
@@ -4604,6 +4723,8 @@ async ForeignVerifyPaymentOtp(verifyOtpDto: VerifyPaymentOtpDto) {
     await queryRunner.manager.save(transaction); // This is the key line
 
     await queryRunner.commitTransaction();
+
+    console.log("transaction: ", transaction)
 
     return {
       statusCode: 200,
