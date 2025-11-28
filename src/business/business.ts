@@ -1595,7 +1595,7 @@ export class BusinessService {
 
 
 
-async getTransactions(userId: string, filterDto: TransactionFilterDto) {
+async getTransactions3(userId: string, filterDto: TransactionFilterDto) {
   const { startDate, endDate, status, type, currency } = filterDto;
 
   // 🔹 Normalize DB status into one standard
@@ -1645,7 +1645,6 @@ async getTransactions(userId: string, filterDto: TransactionFilterDto) {
     (tx) => tx.dated >= start && tx.dated <= end,
   );
 
-  // 🔹 STATUS FILTER - using normalized value
   if (status?.length) {
     const allowedStatusSet = new Set(status);
     
@@ -1654,19 +1653,18 @@ async getTransactions(userId: string, filterDto: TransactionFilterDto) {
     );
   }
 
-  // 🔹 Type filter
+  
   if (type) {
     transactions = transactions.filter((tx) => tx.type === type);
   }
 
-  // 🔹 Currency filter
   if (currency) {
     transactions = transactions.filter(
       (tx) => tx.currency_settled?.toUpperCase() === currency.toUpperCase(),
     );
   }
 
-  // 🔹 Format result
+ 
   const mapped = transactions.map((tx) => ({
     ...tx,
     status: normalizeStatus(tx.status),
@@ -1694,6 +1692,105 @@ async getTransactions(userId: string, filterDto: TransactionFilterDto) {
   };
 }
 
+async getTransactions(userId: string, filterDto: TransactionFilterDto) {
+  const { startDate, endDate, status, type, currency } = filterDto;
+
+  const normalizeStatus = (s?: string): 'Pending' | 'Success' | 'Failed' | 'Complete' => {
+    if (!s) return 'Pending';
+    const val = s.toLowerCase();
+    if (val.includes('success') || val.includes('complete')) return 'Success';
+    if (val.includes('pending')) return 'Pending';
+    if (val.includes('fail')) return 'Failed';
+    return 'Success';
+  };
+
+  const query = this.transactionRepository
+    .createQueryBuilder('tx')
+    .innerJoin('tx.wallet', 'wallet')
+    .innerJoin('wallet.account', 'account')
+    .innerJoin('account.user', 'user')
+    .where('user.id = :userId', { userId })
+    .andWhere("tx.type != 'CardPending'")
+    .orderBy('tx.dated', 'DESC')
+    .addOrderBy('tx.id', 'DESC');
+
+  // Date range
+  if (startDate) {
+    query.andWhere('tx.dated >= :startDate', { startDate });
+  }
+  if (endDate) {
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    query.andWhere('tx.dated <= :endDate', { endDate: end });
+  }
+
+  // Status filter (FIXED - no more malformed array)
+  if (status?.length) {
+    const lowerStatuses = status.map(s => s.toLowerCase());
+    const orConditions = lowerStatuses.map((s, i) => `LOWER(tx.status) LIKE :status${i}`);
+    const params: Record<string, string> = {};
+    lowerStatuses.forEach((s, i) => {
+      params[`status${i}`] = `%${s}%`;
+    });
+    query.andWhere(`(${orConditions.join(' OR ')})`, params);
+  }
+
+  // Type filter
+  if (type) {
+    query.andWhere('tx.type = :type', { type });
+  }
+
+  // Currency filter
+  if (currency) {
+    query.andWhere('tx.currency_settled = :currency', { currency: currency.toUpperCase() });
+  }
+
+  const transactions = await query.getMany();
+
+  if (transactions.length === 0) {
+    return {
+      message: 'No transactions available',
+      stats: {
+        range: startDate && endDate ? `${startDate} to ${endDate}` : 'all time',
+        currency: currency || 'NGN',
+        total_inflow_amount: 0,
+        total_outflow: 0,
+        total_transaction_no: '0',
+      },
+      data: [],
+    };
+  }
+
+  const mapped = transactions.map(tx => ({
+    ...tx,
+    status: normalizeStatus(tx.status),
+    dated_ago: this.getTimeAgo(tx.dated),
+    total_amount: Number(tx.total_amount),
+    settled_amount: Number(tx.settled_amount),
+    balance_before: Number(tx.balance_before),
+    balance_after: Number(tx.balance_after),
+  }));
+
+  const totalInflow = mapped
+    .filter(tx => tx.type === 'Inflow')
+    .reduce((sum, tx) => sum + tx.settled_amount, 0);
+
+  const totalOutflow = mapped
+    .filter(tx => tx.type === 'Outflow')
+    .reduce((sum, tx) => sum + tx.settled_amount, 0);
+
+  return {
+    message: 'Filtered transactions fetched successfully',
+    stats: {
+      range: startDate && endDate ? `${startDate} to ${endDate}` : 'all time',
+      currency: currency || 'NGN',
+      total_inflow_amount: totalInflow,
+      total_outflow_amount: totalOutflow,
+      total_transaction_no: mapped.length.toString(),
+    },
+    data: mapped, // Already sorted: newest first
+  };
+}
 
   async getAccount(userId: string) {
     try {
