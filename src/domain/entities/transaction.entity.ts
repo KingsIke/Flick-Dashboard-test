@@ -49,10 +49,10 @@ export class Transaction {
   @Column()
   narration: string;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({ type: 'decimal', precision: 30, scale: 2 })
   balance_before: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({ type: 'decimal', precision: 30, scale: 2 })
   balance_after: number;
 
   @Column({ nullable: true })
