@@ -1008,8 +1008,6 @@ export class BusinessService {
           payout_balance: 0,
           api_balance: 0,
         };
-        // const multiplier = 100;
-
         return {
           currency,
           collection_balance: Number(
