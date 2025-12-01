@@ -4389,6 +4389,7 @@ async processForeignPayment1(userId: string, accessCode: ProcessForeignPaymentDt
 }
 async processForeignPayment(accessCode: ProcessForeignPaymentDto) {
   try {
+    
     const paymentPage = await this.paymentPageRepository.findOne({
       where: {
         access_code: accessCode.accessCode,
@@ -4446,24 +4447,26 @@ async processForeignPayment(accessCode: ProcessForeignPaymentDto) {
     if (!transaction) {
       throw new HttpException('Pending transaction not found for this payment', HttpStatus.NOT_FOUND);
     }
+    
+    const dividedAmount = amount / 100;
 
     return {
       statusCode: 200,
       status: 'success',
       message: 'Foreign payment processed successfully',
       data: {
-        currency_collected: currency,
-        access_code: accessCode.accessCode,
-        payableAmountString: amount.toString(),
-        amount: amount,
-        exchange_rate: 1,
-        amountPayable: amount,
-        payableFxAmountString: amount,
-        settled_amount: amount,
-        business_name: account.user.name,
-        senderEmail: paymentPage.account.user.email,
-        transactionId: transaction.transactionid,
-      },
+  currency_collected: currency,
+  access_code: accessCode.accessCode,
+  payableAmountString: dividedAmount.toString(),
+  amount: dividedAmount,
+  exchange_rate: 1,
+  amountPayable: dividedAmount,
+  payableFxAmountString: dividedAmount.toString(),
+  settled_amount: dividedAmount,
+  business_name: account.user.name,
+  senderEmail: paymentPage.account.user.email,
+  transactionId: transaction.transactionid,
+},
     };
   } catch (error) {
     console.error('Process foreign payment error:', error);
@@ -4956,6 +4959,7 @@ async ForeignVerifyPaymentOtp(verifyOtpDto: VerifyPaymentOtpDto) {
     await queryRunner.manager.save(transaction);
 
     await queryRunner.commitTransaction();
+    const dividedAmount = paymentAmount / 100;
 
     return {
       statusCode: 200,
@@ -4963,7 +4967,7 @@ async ForeignVerifyPaymentOtp(verifyOtpDto: VerifyPaymentOtpDto) {
       message: 'Payment completed successfully! Funds added to your wallet.',
       data: {
         accessCode: verifyOtpDto.accessCode,
-        amountAdded: paymentAmount,
+        amountAdded: dividedAmount,
         currency: paymentPage.currency_settled,
         completed: true,
         transactionId: transaction.transactionid,
