@@ -1008,18 +1008,18 @@ export class BusinessService {
           payout_balance: 0,
           api_balance: 0,
         };
-        const multiplier = 100;
+        // const multiplier = 100;
 
         return {
           currency,
           collection_balance: Number(
-            (balance.collection_balance * multiplier).toFixed(2),
+            balance.collection_balance.toFixed(2),
           ),
           payout_balance: Number(
-            (balance.payout_balance * multiplier).toFixed(2),
+            balance.payout_balance.toFixed(2),
           ),
           api_balance: Number(
-            (balance.api_balance * multiplier || 0).toFixed(2),
+            balance.api_balance.toFixed(2) || 0,
           ),
         };
       });
@@ -1693,6 +1693,7 @@ async getTransactions3(userId: string, filterDto: TransactionFilterDto) {
 }
 
 async getTransactions(userId: string, filterDto: TransactionFilterDto) {
+  try{
   const { startDate, endDate, status, type, currency } = filterDto;
 
   const normalizeStatus = (s?: string): 'Pending' | 'Success' | 'Failed' | 'Complete' => {
@@ -1788,8 +1789,17 @@ async getTransactions(userId: string, filterDto: TransactionFilterDto) {
       total_outflow_amount: totalOutflow,
       total_transaction_no: mapped.length.toString(),
     },
-    data: mapped, // Already sorted: newest first
+    data: mapped, 
   };
+  } catch (error) {
+      console.error('Get Transaction error:', error);
+      throw error instanceof HttpException
+        ? error
+        : new HttpException(
+            'Failed to retrieve account',
+            HttpStatus.INTERNAL_SERVER_ERROR,
+          );
+    }
 }
 
   async getAccount(userId: string) {
@@ -4884,7 +4894,7 @@ async ForeignVerifyPaymentOtp(verifyOtpDto: VerifyPaymentOtpDto) {
 
     const isOtpValid = await bcrypt.compare(verifyOtpDto.otp, paymentPage.otp);
     if (!isOtpValid) {
-      paymentPage.otpAttempts = (paymentPage.otpAttempts || 0) + 1;
+      paymentPage.otpAttempts = (paymentPage.otpAttempts || 0);
       if (paymentPage.otpAttempts >= 3) {
         paymentPage.isOtpLocked = true;
       }
