@@ -1008,18 +1008,13 @@ export class BusinessService {
           payout_balance: 0,
           api_balance: 0,
         };
-        return {
-          currency,
-          collection_balance: Number(
-            balance.collection_balance.toFixed(2),
-          ),
-          payout_balance: Number(
-            balance.payout_balance.toFixed(2),
-          ),
-          api_balance: Number(
-            balance.api_balance.toFixed(2) || 0,
-          ),
-        };
+        const toNum = (val: any) => Number(parseFloat(val) || 0);
+return {
+  currency,
+  collection_balance: Number(toNum(balance.collection_balance).toFixed(2)),
+  payout_balance: Number(toNum(balance.payout_balance).toFixed(2)),
+  api_balance: Number(toNum(balance.api_balance).toFixed(2)),
+};
       });
       console.log('3: Formatted balances:', JSON.stringify(balances));
 
